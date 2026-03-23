@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jankowo CASINO | Roulette VIP</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@700;900&family=Manrope:wght@400;500;600&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "surface-container-highest": "#353534","on-secondary-fixed-variant": "#920703","error-container": "#93000a",
+        "secondary-fixed": "#ffdad4","tertiary": "#ffb3b2","surface-bright": "#3a3939",
+        "surface-container": "#201f1f","on-secondary-container": "#ff9a8a","on-primary-container": "#d0ab33",
+        "surface-container-high": "#2a2a2a","surface-container-lowest": "#0e0e0e","primary-fixed": "#ffe088",
+        "on-primary-fixed": "#241a00","inverse-on-surface": "#313030","surface-container-low": "#1c1b1b",
+        "outline": "#aa8984","primary-container": "#524000","primary": "#e9c349","tertiary-container": "#8a001d",
+        "tertiary-fixed-dim": "#ffb3b2","on-error": "#690005","on-primary-fixed-variant": "#574500",
+        "surface-dim": "#131313","secondary": "#ffb4a8","on-tertiary-fixed-variant": "#920020",
+        "on-error-container": "#ffdad6","surface": "#131313","on-tertiary": "#680014",
+        "inverse-primary": "#735c00","on-tertiary-fixed": "#410008","tertiary-fixed": "#ffdad9",
+        "outline-variant": "#5a403c","surface-variant": "#353534","error": "#ffb4ab",
+        "inverse-surface": "#e5e2e1","secondary-fixed-dim": "#ffb4a8","secondary-container": "#920703",
+        "on-surface-variant": "#e3beb8","background": "#131313","primary-fixed-dim": "#e9c349",
+        "on-background": "#e5e2e1","on-surface": "#e5e2e1","on-primary": "#3c2f00",
+        "on-tertiary-container": "#ff8f90","on-secondary": "#690000","surface-tint": "#e9c349",
+        "on-secondary-fixed": "#410000"
+      },
+      fontFamily: { headline: ["Noto Serif"], body: ["Manrope"], label: ["Space Grotesk"] },
+      borderRadius: { DEFAULT: "0.125rem", lg: "0.25rem", xl: "0.5rem", full: "0.75rem" }
+    }
+  }
+}
+</script>
+<style>
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+#roulette-wheel { transform-origin: center; will-change: transform; }
+.wheel-spinning { transition: transform 5s cubic-bezier(0.05, 0.75, 0.15, 1.0); }
+.glass-panel { background: rgba(53,53,52,0.6); backdrop-filter: blur(20px); }
+.bet-chip {
+  pointer-events: none; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%;
+  background: #e9c349; color: #3c2f00; font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  border: 2px dashed rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,0,0,0.6); z-index: 10;
+}
+.result-card-enter { animation: rcEnter 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+@keyframes rcEnter {
+  from { transform: translate(-50%,-50%) scale(0.4); opacity: 0; }
+  to   { transform: translate(-50%,-50%) scale(1);   opacity: 1; }
+}
+.result-card-exit { animation: rcExit 0.4s ease-in forwards; }
+@keyframes rcExit {
+  from { transform: translate(-50%,-50%) scale(1);   opacity: 1; }
+  to   { transform: translate(-50%,-50%) scale(0.8); opacity: 0; }
+}
+.win-cell { box-shadow: 0 0 20px rgba(233,195,73,0.7) inset !important; border-color: rgba(233,195,73,0.8) !important; }
+.win-pulse { animation: winPulse 0.4s ease-in-out 4; }
+@keyframes winPulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #131313; }
+::-webkit-scrollbar-thumb { background: #353534; border-radius: 2px; }
+.chip-active { box-shadow: 0 0 0 2px #e9c349, 0 0 0 4px #131313, 0 0 16px rgba(233,195,73,0.5) !important; }
+.spin-btn-glow { box-shadow: 0 0 40px rgba(233,195,73,0.4); }
+.spin-btn-glow:hover { box-shadow: 0 0 60px rgba(233,195,73,0.7); }
+.spin-btn-glow:active { transform: scale(0.94); }
+.side-nav-link { transition: all 0.2s; }
+.side-nav-link:hover { transform: translateX(4px); }
+.bet-cell { cursor: pointer; transition: background 0.15s; position: relative; }
+.bet-cell:hover { background: rgba(255,255,255,0.08) !important; }
+.ball-orbit { position: absolute; top: 50%; left: 50%; width: 0; height: 0; transform-origin: 0 0; }
+.ball {
+  position: absolute; width: 14px; height: 14px; background: white;
+  border-radius: 50%; top: -7px; left: -7px;
+  box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 2px 4px rgba(0,0,0,0.5);
+}
+@keyframes ballOrbit { from{transform:rotate(0deg) translateY(-182px)} to{transform:rotate(-360deg) translateY(-182px)} }
+.ball-spinning-fast { animation: ballOrbit 0.35s linear infinite; }
+.ball-spinning-slow { animation: ballOrbit 1.2s linear infinite; }
+.roulette-glow { filter: drop-shadow(0 0 25px rgba(233,195,73,0.35)); }
+</style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary/30 selection:text-primary overflow-x-hidden">
+
+<!-- Header -->
+<header class="flex justify-between items-center px-6 py-4 w-full fixed top-0 bg-gradient-to-b from-[#131313] via-[#131313]/95 to-transparent z-50 shadow-2xl shadow-red-900/10">
+  <div class="text-2xl font-black text-primary tracking-tighter font-headline uppercase">Jankowo CASINO</div>
+  <nav class="hidden md:flex items-center gap-8">
+    <a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-secondary transition-colors duration-300" href="#">Lobby</a>
+    <a class="text-primary font-bold border-b-2 border-primary font-label uppercase tracking-widest text-xs" href="#">Roulette</a>
+    <a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-secondary transition-colors duration-300" href="#">VIP Lounge</a>
+  </nav>
+  <div class="flex items-center gap-4">
+    <button class="material-symbols-outlined text-primary hover:text-secondary transition-colors">account_balance_wallet</button>
+    <button class="material-symbols-outlined text-primary hover:text-secondary transition-colors">notifications</button>
+    <button class="material-symbols-outlined text-primary hover:text-secondary transition-colors">account_circle</button>
+  </div>
+</header>
+
+<!-- Sidebar -->
+<aside class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 z-40 bg-[#131313] py-8 border-r border-white/5 shadow-[10px_0_30px_rgba(0,0,0,0.5)]">
+  <div class="px-6 mb-12 mt-16">
+    <h2 class="font-headline text-primary text-xl font-black tracking-tight">The High-Roller</h2>
+    <p class="font-label text-gray-500 text-[10px] tracking-widest uppercase">Prestige Level</p>
+  </div>
+  <nav class="flex-1 space-y-1">
+    <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
+      <span class="material-symbols-outlined mr-4 text-xl">casino</span>
+      <span class="font-label text-xs uppercase tracking-widest">Lobby</span>
+    </a>
+    <a class="side-nav-link flex items-center px-6 py-3 bg-gradient-to-r from-primary/20 to-transparent text-primary border-l-4 border-primary" href="#">
+      <span class="material-symbols-outlined mr-4 text-xl">refresh</span>
+      <span class="font-label text-xs uppercase tracking-widest">Roulette</span>
+    </a>
+    <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
+      <span class="material-symbols-outlined mr-4 text-xl">stars</span>
+      <span class="font-label text-xs uppercase tracking-widest">VIP Lounge</span>
+    </a>
+    <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
+      <span class="material-symbols-outlined mr-4 text-xl">history</span>
+      <span class="font-label text-xs uppercase tracking-widest">History</span>
+    </a>
+  </nav>
+  <div class="px-6 mt-auto space-y-4">
+    <button class="w-full py-4 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.2em] shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all">DEPOSIT GOLD</button>
+    <div class="flex justify-between pt-4 border-t border-white/5">
+      <button class="material-symbols-outlined text-gray-500 hover:text-primary transition-colors">settings</button>
+      <button class="material-symbols-outlined text-gray-500 hover:text-primary transition-colors">help_outline</button>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="md:ml-64 pt-24 pb-32 px-4 md:px-10 min-h-screen">
+  <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+    <!-- Left: Stats -->
+    <div class="lg:col-span-3 space-y-4 order-2 lg:order-1">
+      <div class="bg-surface-container-low p-5 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-secondary mb-4">Live Statistics</h3>
+        <div class="space-y-4">
+          <div>
+            <p class="text-[10px] font-label text-gray-500 uppercase mb-2">Hot Numbers</p>
+            <div id="hot-numbers" class="flex gap-2"></div>
+          </div>
+          <div>
+            <p class="text-[10px] font-label text-gray-500 uppercase mb-2">Cold Numbers</p>
+            <div id="cold-numbers" class="flex gap-2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-surface-container-high p-5 rounded-lg glass-panel">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-primary mb-4">Last 10 Results</h3>
+        <div id="last-results" class="grid grid-cols-5 gap-1.5"></div>
+      </div>
+      <!-- Bet history log -->
+      <div class="bg-surface-container-low p-5 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-3">Recent Rounds</h3>
+        <div id="round-log" class="space-y-2 text-[11px] font-label text-gray-500 max-h-40 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- Center: Wheel -->
+    <div class="lg:col-span-6 flex flex-col items-center order-1 lg:order-2">
+      <!-- Wheel container -->
+      <div class="relative w-full max-w-[380px] aspect-square mb-6">
+        <!-- Outer glow ring -->
+        <div class="absolute inset-0 rounded-full border-[10px] border-surface-container-highest" style="box-shadow: 0 0 60px -15px rgba(233,195,73,0.4)"></div>
+        <!-- Wheel stage -->
+        <div class="absolute inset-3 rounded-full bg-gradient-to-tr from-[#0e0e0e] via-[#201f1f] to-[#0e0e0e] overflow-hidden flex items-center justify-center">
+          <svg id="roulette-wheel" class="roulette-glow" viewBox="0 0 400 400" width="100%" height="100%"></svg>
+        </div>
+        <!-- Ball orbit wrapper (counter-rotates while spinning) -->
+        <div id="ball-orbit-container" class="absolute inset-3 rounded-full pointer-events-none" style="display:none">
+          <div class="ball-orbit" id="ball-element">
+            <div class="ball"></div>
+          </div>
+        </div>
+        <!-- Fixed arrow indicator at top -->
+        <div class="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <svg width="18" height="22" viewBox="0 0 18 22">
+            <polygon points="9,20 0,2 18,2" fill="#e9c349" filter="drop-shadow(0 0 4px rgba(233,195,73,0.8))"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex items-center gap-6 w-full justify-center mb-4">
+        <div class="text-center min-w-[90px]">
+          <p class="font-label text-[10px] tracking-widest text-gray-500 uppercase">Balance</p>
+          <p id="balance-display" class="font-headline text-xl text-primary tracking-tighter">$14,250.00</p>
+        </div>
+        <button id="spin-btn" onclick="spin()" class="spin-btn-glow px-10 py-5 bg-primary text-on-primary font-label font-bold tracking-[0.4em] text-sm hover:brightness-110 transition-all">
+          SPIN
+        </button>
+        <div class="text-center min-w-[90px]">
+          <p class="font-label text-[10px] tracking-widest text-gray-500 uppercase">Current Bet</p>
+          <p id="current-bet-display" class="font-headline text-xl text-secondary tracking-tighter">$0.00</p>
+        </div>
+      </div>
+      <!-- Bet controls -->
+      <div class="flex gap-3">
+        <button onclick="clearBets()" class="px-4 py-2 border border-white/10 text-gray-400 font-label text-[10px] tracking-widest uppercase hover:border-secondary/30 hover:text-secondary transition-all">
+          CLEAR BETS
+        </button>
+        <button onclick="doubleBets()" class="px-4 py-2 border border-white/10 text-gray-400 font-label text-[10px] tracking-widest uppercase hover:border-primary/30 hover:text-primary transition-all">
+          DOUBLE
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: Quick Bets + Chips -->
+    <div class="lg:col-span-3 space-y-4 order-3">
+      <div class="bg-surface-container-low p-4 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-4">Quick Bets</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <button data-bet="red" onclick="placeBet('red')" class="bet-cell py-3 bg-secondary-container/20 border border-secondary/20 text-secondary font-label text-[10px] tracking-widest uppercase hover:bg-secondary-container/40 transition-colors relative">Red</button>
+          <button data-bet="black" onclick="placeBet('black')" class="bet-cell py-3 bg-surface-container-highest/40 border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">Black</button>
+          <button data-bet="even" onclick="placeBet('even')" class="bet-cell py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">Even</button>
+          <button data-bet="odd" onclick="placeBet('odd')" class="bet-cell py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">Odd</button>
+          <button data-bet="low" onclick="placeBet('low')" class="bet-cell py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">1–18</button>
+          <button data-bet="high" onclick="placeBet('high')" class="bet-cell py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">19–36</button>
+        </div>
+      </div>
+
+      <div class="bg-surface-container-low p-4 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-4">Select Chip</h3>
+        <div class="flex flex-wrap gap-2 justify-center">
+          <button onclick="selectChip(1)" data-chip="1" class="chip-btn w-11 h-11 rounded-full bg-[#e5e2e1] text-black font-label font-bold text-[11px] border-2 border-dashed border-gray-400 flex items-center justify-center hover:scale-110 transition-transform">1</button>
+          <button onclick="selectChip(5)" data-chip="5" class="chip-btn w-11 h-11 rounded-full bg-secondary text-on-secondary font-label font-bold text-[11px] border-2 border-dashed border-white/30 flex items-center justify-center hover:scale-110 transition-transform">5</button>
+          <button onclick="selectChip(25)" data-chip="25" class="chip-btn w-11 h-11 rounded-full bg-primary text-on-primary font-label font-bold text-[11px] border-2 border-dashed border-white/30 flex items-center justify-center hover:scale-110 transition-transform">25</button>
+          <button onclick="selectChip(100)" data-chip="100" class="chip-btn w-11 h-11 rounded-full bg-surface-container-highest text-primary font-label font-bold text-[11px] border-2 border-dashed border-primary/50 flex items-center justify-center hover:scale-110 transition-transform">100</button>
+          <button onclick="selectChip(500)" data-chip="500" class="chip-btn w-11 h-11 rounded-full bg-tertiary-container text-tertiary font-label font-bold text-[10px] border-2 border-dashed border-tertiary/30 flex items-center justify-center hover:scale-110 transition-transform">500</button>
+        </div>
+        <p class="text-center font-label text-[10px] text-gray-500 uppercase tracking-widest mt-3">
+          Selected: <span id="chip-label" class="text-primary">$5</span>
+        </p>
+      </div>
+
+      <!-- Dozen bets -->
+      <div class="bg-surface-container-low p-4 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-3">Dozens (2:1)</h3>
+        <div class="grid grid-cols-3 gap-2">
+          <button data-bet="dozen1" onclick="placeBet('dozen1')" class="bet-cell py-3 bg-surface-container border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">1–12</button>
+          <button data-bet="dozen2" onclick="placeBet('dozen2')" class="bet-cell py-3 bg-surface-container border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">13–24</button>
+          <button data-bet="dozen3" onclick="placeBet('dozen3')" class="bet-cell py-3 bg-surface-container border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase relative">25–36</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Betting Table -->
+  <section class="max-w-6xl mx-auto mt-10 bg-surface-container-lowest p-1 rounded-xl shadow-2xl border border-white/5 overflow-x-auto">
+    <div class="min-w-[700px]">
+      <!-- Number grid -->
+      <div class="grid gap-0.5 mb-0.5" style="grid-template-columns: 56px 1fr">
+        <!-- Zero -->
+        <div data-bet="n_0" onclick="placeBet('n_0')" class="bet-cell row-span-3 flex items-center justify-center bg-[#1a4d1a] text-[#6aff6a] font-headline text-xl border border-white/5 hover:bg-[#1a4d1a]/60" style="min-height:192px">0</div>
+        <!-- Number rows: 3 rows × 12 cols -->
+        <div id="number-grid" class="grid grid-rows-3 gap-0.5" style="grid-template-rows: repeat(3, 64px)"></div>
+      </div>
+      <!-- Outside bets row -->
+      <div class="grid gap-0.5 mt-0.5" style="grid-template-columns: 56px repeat(3,1fr) repeat(3,1fr) repeat(3,1fr) 1fr">
+        <div class="bg-transparent"></div>
+        <button data-bet="col3" onclick="placeBet('col3')" class="bet-cell py-2 bg-surface-container border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">2:1</button>
+        <button data-bet="col3" onclick="placeBet('col3')" class="bet-cell py-2 bg-surface-container border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative" style="display:none"></button>
+        <div class="bg-transparent" style="grid-column: span 9"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Outside bets full row -->
+  <div class="max-w-6xl mx-auto mt-1 overflow-x-auto">
+    <div class="min-w-[700px] grid grid-cols-7 gap-0.5">
+      <button data-bet="col1" onclick="placeBet('col1')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">2:1 Col</button>
+      <button data-bet="dozen1" onclick="placeBet('dozen1')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">1st 12</button>
+      <button data-bet="dozen2" onclick="placeBet('dozen2')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">2nd 12</button>
+      <button data-bet="dozen3" onclick="placeBet('dozen3')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">3rd 12</button>
+      <button data-bet="low" onclick="placeBet('low')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">1–18</button>
+      <button data-bet="even" onclick="placeBet('even')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">Even</button>
+      <button data-bet="odd" onclick="placeBet('odd')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">Odd</button>
+    </div>
+    <div class="min-w-[700px] grid grid-cols-3 gap-0.5 mt-0.5">
+      <button data-bet="red" onclick="placeBet('red')" class="bet-cell py-3 bg-secondary-container/30 border border-secondary/20 text-secondary font-label text-[10px] tracking-widest uppercase text-center relative">Red</button>
+      <button data-bet="black" onclick="placeBet('black')" class="bet-cell py-3 bg-surface-container-highest/20 border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase text-center relative">Black</button>
+      <button data-bet="high" onclick="placeBet('high')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">19–36</button>
+    </div>
+  </div>
+</main>
+
+<!-- Bottom nav (mobile) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pt-3 pb-6 md:hidden bg-[#131313]/90 backdrop-blur-xl border-t border-white/5 z-50">
+  <a class="flex flex-col items-center text-gray-500 hover:text-secondary active:scale-90 transition-all" href="#">
+    <span class="material-symbols-outlined">home</span>
+    <span class="font-label text-[10px] uppercase tracking-wider">Home</span>
+  </a>
+  <a class="flex flex-col items-center text-primary scale-110" href="#">
+    <span class="material-symbols-outlined">monetization_on</span>
+    <span class="font-label text-[10px] uppercase tracking-wider">Bets</span>
+  </a>
+  <a class="flex flex-col items-center text-gray-500 hover:text-secondary active:scale-90 transition-all" href="#">
+    <span class="material-symbols-outlined">account_balance_wallet</span>
+    <span class="font-label text-[10px] uppercase tracking-wider">Wallet</span>
+  </a>
+  <a class="flex flex-col items-center text-gray-500 hover:text-secondary active:scale-90 transition-all" href="#">
+    <span class="material-symbols-outlined">person</span>
+    <span class="font-label text-[10px] uppercase tracking-wider">Profile</span>
+  </a>
+</nav>
+
+<!-- Result Overlay -->
+<div id="result-overlay" class="fixed inset-0 z-[100] pointer-events-none" style="display:none">
+  <div id="result-card" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-panel rounded-2xl p-8 text-center min-w-[240px] border border-white/10 shadow-2xl">
+    <p class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-2">Winning Number</p>
+    <div id="result-number" class="font-headline text-7xl font-black tracking-tighter mb-1">0</div>
+    <div id="result-color-badge" class="inline-block px-3 py-1 rounded-sm font-label text-xs tracking-widest uppercase font-bold mb-4">Green</div>
+    <div id="result-outcome" class="font-headline text-2xl font-black"></div>
+    <div id="result-amount" class="font-label text-sm text-gray-400 mt-1"></div>
+  </div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const WHEEL_SEQ = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+const RED = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+const PAYOUTS = { n:35, red:1, black:1, even:1, odd:1, low:1, high:1, dozen1:2, dozen2:2, dozen3:2, col1:2, col2:2, col3:2 };
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let state = {
+  balance: 14250,
+  chip: 5,
+  bets: {},
+  spinning: false,
+  wheelAngle: 0,
+  history: [14,33,1,20,0,5,22,9,11,36,32,17,8,3,25]
+};
+
+// ─── Color helpers ───────────────────────────────────────────────────────────
+function numColor(n) { return n===0?'green': RED.has(n)?'red':'black'; }
+
+// ─── SVG Wheel ────────────────────────────────────────────────────────────────
+function polar(cx,cy,r,deg) {
+  const rad=(deg-90)*Math.PI/180;
+  return [cx+r*Math.cos(rad), cy+r*Math.sin(rad)];
+}
+function annularSector(cx,cy,r1,r2,a1,a2) {
+  const [x1,y1]=polar(cx,cy,r2,a1), [x2,y2]=polar(cx,cy,r2,a2);
+  const [x3,y3]=polar(cx,cy,r1,a2), [x4,y4]=polar(cx,cy,r1,a1);
+  const lg=a2-a1>180?1:0;
+  return `M${x1},${y1} A${r2},${r2} 0 ${lg},1 ${x2},${y2} L${x3},${y3} A${r1},${r1} 0 ${lg},0 ${x4},${y4} Z`;
+}
+
+function buildWheel() {
+  const svg = document.getElementById('roulette-wheel');
+  const cx=200, cy=200, N=37, APD=360/N;
+  const R=186, R_TEXT=150, R_INNER=58, R_HUB=36;
+  let h='';
+
+  h+=`<defs>
+    <radialGradient id="hubG" cx="38%" cy="32%">
+      <stop offset="0%" stop-color="#ffe088"/>
+      <stop offset="55%" stop-color="#735c00"/>
+      <stop offset="100%" stop-color="#3c2f00"/>
+    </radialGradient>
+    <radialGradient id="innerG" cx="50%" cy="50%">
+      <stop offset="0%" stop-color="#2a2a2a"/>
+      <stop offset="100%" stop-color="#111"/>
+    </radialGradient>
+  </defs>`;
+
+  // Background
+  h+=`<circle cx="${cx}" cy="${cy}" r="${R+4}" fill="#0e0e0e"/>`;
+
+  for(let i=0;i<N;i++){
+    const num=WHEEL_SEQ[i];
+    const a1=i*APD, a2=(i+1)*APD, mid=(i+0.5)*APD;
+    const col = num===0 ? '#1a4a1a' : RED.has(num) ? '#6b0f0f' : '#1a1a1a';
+    const borderCol = num===0 ? '#2a7a2a' : RED.has(num) ? '#9b2020' : '#333';
+
+    // Colored sector
+    h+=`<path d="${annularSector(cx,cy,R_INNER,R,a1,a2)}" fill="${col}" stroke="#111" stroke-width="0.8"/>`;
+
+    // Outer accent strip
+    h+=`<path d="${annularSector(cx,cy,R-10,R,a1+0.3,a2-0.3)}" fill="${borderCol}" opacity="0.5"/>`;
+
+    // Number text
+    const [tx,ty]=polar(cx,cy,R_TEXT,mid);
+    const tCol = num===0 ? '#6aff6a' : '#e5e2e1';
+    const tSize = num<10 ? 13 : 10;
+    h+=`<text x="${tx}" y="${ty}" transform="rotate(${mid},${tx},${ty})"
+      text-anchor="middle" dominant-baseline="middle"
+      fill="${tCol}" font-size="${tSize}" font-family="Space Grotesk,sans-serif" font-weight="700"
+    >${num}</text>`;
+  }
+
+  // Inner ring
+  h+=`<circle cx="${cx}" cy="${cy}" r="${R_INNER}" fill="url(#innerG)" stroke="#333" stroke-width="1"/>`;
+  h+=`<circle cx="${cx}" cy="${cy}" r="${R_INNER-8}" fill="#1a1a1a" stroke="#2a2a2a" stroke-width="0.5"/>`;
+
+  // Center hub
+  h+=`<circle cx="${cx}" cy="${cy}" r="${R_HUB}" fill="url(#hubG)"/>`;
+  h+=`<circle cx="${cx-4}" cy="${cy-4}" r="6" fill="white" opacity="0.18"/>`;
+  h+=`<circle cx="${cx}" cy="${cy}" r="5" fill="#2a2000" opacity="0.9"/>`;
+
+  // Outer decorative ring
+  h+=`<circle cx="${cx}" cy="${cy}" r="${R+1}" fill="none" stroke="#e9c349" stroke-width="1.5" opacity="0.3"/>`;
+  h+=`<circle cx="${cx}" cy="${cy}" r="${R_INNER}" fill="none" stroke="#e9c349" stroke-width="0.8" opacity="0.2"/>`;
+
+  svg.innerHTML = h;
+}
+
+// ─── Number Table ─────────────────────────────────────────────────────────────
+function buildTable() {
+  const grid = document.getElementById('number-grid');
+  // 3 rows × 12 cols. Row 3 = top: 3,6,9,...,36  Row2: 2,5,...,35  Row1: 1,4,...,34
+  const rows = [
+    [3,6,9,12,15,18,21,24,27,30,33,36],
+    [2,5,8,11,14,17,20,23,26,29,32,35],
+    [1,4,7,10,13,16,19,22,25,28,31,34]
+  ];
+  grid.style.gridTemplateColumns = `repeat(12, 1fr)`;
+  let h = '';
+  for(const row of rows) {
+    for(const n of row) {
+      const isRed = RED.has(n);
+      const bg = isRed ? 'bg-secondary-container' : 'bg-surface-container-highest';
+      const tc = isRed ? 'text-secondary' : 'text-on-surface';
+      h+=`<div data-bet="n_${n}" onclick="placeBet('n_${n}')" class="bet-cell h-16 flex items-center justify-center ${bg} ${tc} border border-white/5 font-bold text-sm select-none">${n}</div>`;
+    }
+  }
+  grid.innerHTML = h;
+}
+
+// ─── Chip selection ───────────────────────────────────────────────────────────
+function selectChip(val) {
+  state.chip = val;
+  document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('chip-active'));
+  document.querySelector(`[data-chip="${val}"]`).classList.add('chip-active');
+  document.getElementById('chip-label').textContent = `$${val}`;
+}
+
+// ─── Place bet ────────────────────────────────────────────────────────────────
+function placeBet(key) {
+  if(state.spinning) return;
+  const cost = state.chip;
+  if(state.balance < cost) { showToast('Niewystarczające środki!'); return; }
+  state.bets[key] = (state.bets[key]||0) + cost;
+  state.balance -= cost;
+  updateUI();
+}
+
+function clearBets() {
+  if(state.spinning) return;
+  // Refund all bets
+  for(const v of Object.values(state.bets)) state.balance += v;
+  state.bets = {};
+  updateUI();
+}
+
+function doubleBets() {
+  if(state.spinning) return;
+  const totalBet = Object.values(state.bets).reduce((a,b)=>a+b,0);
+  if(totalBet === 0) return;
+  if(state.balance < totalBet) { showToast('Niewystarczające środki do podwojenia!'); return; }
+  const newBets = {};
+  for(const [k,v] of Object.entries(state.bets)) {
+    newBets[k] = v*2;
+    state.balance -= v;
+  }
+  state.bets = newBets;
+  updateUI();
+}
+
+// ─── Spin ─────────────────────────────────────────────────────────────────────
+function spin() {
+  if(state.spinning) return;
+  const totalBet = Object.values(state.bets).reduce((a,b)=>a+b,0);
+  if(totalBet === 0) { showToast('Postaw zakład przed spinowaniem!'); return; }
+
+  state.spinning = true;
+  document.getElementById('spin-btn').disabled = true;
+  document.getElementById('spin-btn').classList.add('opacity-50');
+
+  // Determine winner
+  const winNum = Math.floor(Math.random() * 37); // 0–36
+
+  // Calculate wheel rotation
+  const winIdx = WHEEL_SEQ.indexOf(winNum);
+  const targetAngle = (winIdx + 0.5) * (360/37);
+  const rem = state.wheelAngle % 360;
+  const needed = (targetAngle - rem + 360) % 360;
+  const newAngle = state.wheelAngle + 1800 + needed;
+
+  // Animate wheel
+  const wheel = document.getElementById('roulette-wheel');
+  wheel.style.transition = 'none';
+  // Start ball animation
+  startBall();
+
+  requestAnimationFrame(() => {
+    wheel.classList.add('wheel-spinning');
+    wheel.style.transform = `rotate(${newAngle}deg)`;
+    state.wheelAngle = newAngle;
+  });
+
+  // After spin ends
+  setTimeout(() => {
+    stopBall();
+    wheel.classList.remove('wheel-spinning');
+    state.spinning = false;
+    document.getElementById('spin-btn').disabled = false;
+    document.getElementById('spin-btn').classList.remove('opacity-50');
+
+    // Resolve bets
+    const {net, winnings} = resolveBets(winNum);
+    state.balance += winnings;
+    state.history.unshift(winNum);
+    if(state.history.length > 50) state.history.pop();
+
+    // Log round
+    logRound(winNum, net);
+
+    // Show result
+    showResult(winNum, net);
+    highlightWinCell(winNum);
+    updateUI();
+
+    // Clear bets for next round
+    setTimeout(() => { state.bets = {}; updateUI(); }, 3500);
+  }, 5300);
+}
+
+function startBall() {
+  const c = document.getElementById('ball-orbit-container');
+  const b = document.getElementById('ball-element');
+  c.style.display = 'block';
+  b.classList.add('ball-spinning-fast');
+  setTimeout(() => { b.classList.remove('ball-spinning-fast'); b.classList.add('ball-spinning-slow'); }, 3000);
+}
+function stopBall() {
+  const c = document.getElementById('ball-orbit-container');
+  const b = document.getElementById('ball-element');
+  b.classList.remove('ball-spinning-fast','ball-spinning-slow');
+  c.style.display = 'none';
+}
+
+// ─── Resolve bets ─────────────────────────────────────────────────────────────
+function resolveBets(winNum) {
+  const color = numColor(winNum);
+  let winnings = 0;
+  let totalBet = Object.values(state.bets).reduce((a,b)=>a+b,0);
+
+  for(const [key, amount] of Object.entries(state.bets)) {
+    let won = false;
+    let payout = 0;
+
+    if(key.startsWith('n_')) {
+      if(parseInt(key.slice(2))===winNum) { won=true; payout=PAYOUTS.n; }
+    } else if(key==='red')    { won=color==='red'; payout=1; }
+    else if(key==='black')    { won=color==='black'; payout=1; }
+    else if(key==='even')     { won=winNum!==0&&winNum%2===0; payout=1; }
+    else if(key==='odd')      { won=winNum!==0&&winNum%2===1; payout=1; }
+    else if(key==='low')      { won=winNum>=1&&winNum<=18; payout=1; }
+    else if(key==='high')     { won=winNum>=19&&winNum<=36; payout=1; }
+    else if(key==='dozen1')   { won=winNum>=1&&winNum<=12; payout=2; }
+    else if(key==='dozen2')   { won=winNum>=13&&winNum<=24; payout=2; }
+    else if(key==='dozen3')   { won=winNum>=25&&winNum<=36; payout=2; }
+    else if(key==='col1')     { won=winNum!==0&&winNum%3===1; payout=2; }
+    else if(key==='col2')     { won=winNum!==0&&winNum%3===2; payout=2; }
+    else if(key==='col3')     { won=winNum!==0&&winNum%3===0; payout=2; }
+
+    if(won) winnings += amount + amount*payout;
+  }
+
+  return { net: winnings - totalBet, winnings };
+}
+
+// ─── UI Updates ───────────────────────────────────────────────────────────────
+function updateUI() {
+  // Balance
+  document.getElementById('balance-display').textContent = '$'+state.balance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  // Current bet
+  const totalBet = Object.values(state.bets).reduce((a,b)=>a+b,0);
+  document.getElementById('current-bet-display').textContent = '$'+totalBet.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  // Bet chips
+  document.querySelectorAll('.bet-chip').forEach(c=>c.remove());
+  for(const [key,amount] of Object.entries(state.bets)) {
+    if(amount<=0) continue;
+    const cells = document.querySelectorAll(`[data-bet="${key}"]`);
+    cells.forEach(cell => {
+      const chip = document.createElement('div');
+      chip.className = 'bet-chip';
+      chip.textContent = amount>=1000 ? (amount/1000).toFixed(1)+'k' : amount;
+      cell.appendChild(chip);
+    });
+  }
+
+  // Stats
+  updateStats();
+}
+
+function updateStats() {
+  // Last 10 results
+  const lr = document.getElementById('last-results');
+  const last10 = state.history.slice(0,10);
+  lr.innerHTML = last10.map(n => {
+    const c = numColor(n);
+    const bg = n===0 ? 'bg-[#1a4a1a] text-[#6aff6a]' : c==='red' ? 'bg-secondary-container text-secondary' : 'bg-surface-container-highest text-on-surface';
+    return `<div class="h-8 flex items-center justify-center ${bg} text-xs font-bold rounded-sm font-label">${n}</div>`;
+  }).join('');
+
+  // Hot / cold
+  const freq = {};
+  for(let i=0;i<=36;i++) freq[i]=0;
+  state.history.forEach(n=>freq[n]++);
+  const sorted = Object.entries(freq).sort((a,b)=>b[1]-a[1]);
+  const hot = sorted.slice(0,3).map(([n])=>parseInt(n));
+  const cold = sorted.slice(-3).map(([n])=>parseInt(n));
+
+  document.getElementById('hot-numbers').innerHTML = hot.map(n=>{
+    const isR = RED.has(n);
+    return `<span class="w-10 h-10 rounded-full border ${isR?'border-secondary/40 text-secondary':'border-primary/40 text-primary'} flex items-center justify-center font-headline text-sm">${n}</span>`;
+  }).join('');
+
+  document.getElementById('cold-numbers').innerHTML = cold.map(n=>
+    `<span class="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-on-surface font-headline text-sm">${n}</span>`
+  ).join('');
+}
+
+// ─── Result display ───────────────────────────────────────────────────────────
+function showResult(num, net) {
+  const overlay = document.getElementById('result-overlay');
+  const card = document.getElementById('result-card');
+  const c = numColor(num);
+
+  document.getElementById('result-number').textContent = num;
+  document.getElementById('result-number').style.color = c==='green'?'#6aff6a': c==='red'?'#ffb4a8':'#e5e2e1';
+
+  const badge = document.getElementById('result-color-badge');
+  if(c==='red') { badge.textContent='Red'; badge.style.background='#920703'; badge.style.color='#ffb4a8'; }
+  else if(c==='black') { badge.textContent='Black'; badge.style.background='#2a2a2a'; badge.style.color='#e5e2e1'; }
+  else { badge.textContent='Green'; badge.style.background='#1a4a1a'; badge.style.color='#6aff6a'; }
+
+  const outcome = document.getElementById('result-outcome');
+  const amount = document.getElementById('result-amount');
+  if(net > 0) {
+    outcome.textContent = 'You Win!';
+    outcome.style.color = '#e9c349';
+    amount.textContent = `+$${net.toLocaleString('en-US',{minimumFractionDigits:2})}`;
+    amount.style.color = '#e9c349';
+  } else if(net < 0) {
+    outcome.textContent = 'Stawiasz 200 pigwy 🐷';
+    outcome.style.color = '#ffb4a8';
+    amount.textContent = `-$${Math.abs(net).toLocaleString('en-US',{minimumFractionDigits:2})}`;
+    amount.style.color = '#ffb4a8';
+  } else {
+    outcome.textContent = 'Push';
+    outcome.style.color = '#e5e2e1';
+    amount.textContent = 'Bet returned';
+    amount.style.color = '#888';
+  }
+
+  overlay.style.display = 'block';
+  card.className = card.className.replace('result-card-exit','').replace('result-card-enter','');
+  void card.offsetWidth; // reflow
+  card.classList.add('result-card-enter');
+
+  setTimeout(() => {
+    card.classList.add('result-card-exit');
+    setTimeout(() => { overlay.style.display='none'; }, 400);
+  }, 3000);
+}
+
+function highlightWinCell(num) {
+  // Highlight number cell
+  const cell = document.querySelector(`[data-bet="n_${num}"]`);
+  if(cell) {
+    cell.classList.add('win-cell','win-pulse');
+    setTimeout(()=>cell.classList.remove('win-cell','win-pulse'), 3500);
+  }
+}
+
+function logRound(num, net) {
+  const log = document.getElementById('round-log');
+  const c = numColor(num);
+  const colorDot = c==='red'?'🔴':c==='black'?'⚫':'🟢';
+  const sign = net>0?'+':'';
+  const div = document.createElement('div');
+  div.className = 'flex justify-between items-center py-1 border-b border-white/5';
+  div.innerHTML = `<span>${colorDot} <strong class="text-on-surface">${num}</strong></span>
+    <span class="${net>=0?'text-primary':'text-secondary'}">${sign}$${Math.abs(net).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`;
+  log.prepend(div);
+  if(log.children.length>10) log.lastChild.remove();
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'fixed top-24 right-6 z-[200] glass-panel px-4 py-3 rounded-lg border border-white/10 font-label text-xs text-on-surface shadow-xl';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2500);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+buildWheel();
+buildTable();
+selectChip(5);
+updateUI();
+</script>
+</body>
+</html>
