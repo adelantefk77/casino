@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Jankowo CASINO | Roulette VIP</title>
+<title>Jankowo CASINO | VIP Games</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@700;900&family=Manrope:wght@400;500;600&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -71,16 +71,50 @@ tailwind.config = {
 .side-nav-link:hover { transform: translateX(4px); }
 .bet-cell { cursor: pointer; transition: background 0.15s; position: relative; }
 .bet-cell:hover { background: rgba(255,255,255,0.08) !important; }
-.ball-orbit { position: absolute; top: 50%; left: 50%; width: 0; height: 0; transform-origin: 0 0; }
+/* Ball orbit */
+.ball-orbit { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: center center; }
 .ball {
   position: absolute; width: 14px; height: 14px; background: white;
-  border-radius: 50%; top: -7px; left: -7px;
+  border-radius: 50%;
   box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 2px 4px rgba(0,0,0,0.5);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -163px);
 }
-@keyframes ballOrbit { from{transform:rotate(0deg) translateY(-182px)} to{transform:rotate(-360deg) translateY(-182px)} }
+@keyframes ballOrbit { from{transform:rotate(0deg)} to{transform:rotate(-360deg)} }
 .ball-spinning-fast { animation: ballOrbit 0.35s linear infinite; }
 .ball-spinning-slow { animation: ballOrbit 1.2s linear infinite; }
 .roulette-glow { filter: drop-shadow(0 0 25px rgba(233,195,73,0.35)); }
+/* ─── Slot Machine ─────────────────────────────────────────────────────────── */
+.slot-reel-window {
+  width: 92px; height: 240px; overflow: hidden; position: relative;
+  border: 2px solid rgba(233,195,73,0.35); background: #0a0a0a;
+  border-radius: 6px;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 0 15px rgba(0,0,0,0.5);
+}
+.slot-strip { position: absolute; top: 0; left: 0; width: 100%; will-change: transform; }
+.slot-cell {
+  width: 92px; height: 80px; display: flex; align-items: center; justify-content: center;
+  font-size: 38px; user-select: none; line-height: 1;
+  font-family: 'Noto Serif', serif;
+}
+.slot-cell.sym-7 { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: #e9c349; }
+.slot-cell.sym-bar { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: #e5e2e1; letter-spacing: 0.05em; }
+.slot-cell.sym-star { font-family: 'Space Grotesk', sans-serif; font-size: 34px; color: #e9c349; }
+.slot-win-line {
+  position: absolute; top: 50%; left: -6px; right: -6px; height: 80px;
+  transform: translateY(-50%);
+  border-top: 2px solid rgba(233,195,73,0.8);
+  border-bottom: 2px solid rgba(233,195,73,0.8);
+  background: rgba(233,195,73,0.04);
+  pointer-events: none; z-index: 10;
+}
+@keyframes slotWinFlash {
+  0%,100%{ box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 0 15px rgba(0,0,0,0.5); border-color: rgba(233,195,73,0.35); }
+  50%{ box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 0 30px rgba(233,195,73,0.7); border-color: rgba(233,195,73,1); }
+}
+.slot-win-flash { animation: slotWinFlash 0.3s ease-in-out 6; }
+@keyframes leverPull { 0%{transform:rotate(0deg)} 40%{transform:rotate(35deg)} 100%{transform:rotate(0deg)} }
+.lever-pulling { animation: leverPull 0.5s ease-in-out forwards; }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body selection:bg-primary/30 selection:text-primary overflow-x-hidden">
@@ -90,7 +124,7 @@ tailwind.config = {
   <div class="text-2xl font-black text-primary tracking-tighter font-headline uppercase">Jankowo CASINO</div>
   <nav class="hidden md:flex items-center gap-8">
     <a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-secondary transition-colors duration-300" href="#">Lobby</a>
-    <a class="text-primary font-bold border-b-2 border-primary font-label uppercase tracking-widest text-xs" href="#">Roulette</a>
+    <a class="text-primary font-bold border-b-2 border-primary font-label uppercase tracking-widest text-xs" href="#">Games</a>
     <a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-secondary transition-colors duration-300" href="#">VIP Lounge</a>
   </nav>
   <div class="flex items-center gap-4">
@@ -107,13 +141,17 @@ tailwind.config = {
     <p class="font-label text-gray-500 text-[10px] tracking-widest uppercase">Prestige Level</p>
   </div>
   <nav class="flex-1 space-y-1">
-    <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
+    <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer" href="#">
       <span class="material-symbols-outlined mr-4 text-xl">casino</span>
       <span class="font-label text-xs uppercase tracking-widest">Lobby</span>
     </a>
-    <a class="side-nav-link flex items-center px-6 py-3 bg-gradient-to-r from-primary/20 to-transparent text-primary border-l-4 border-primary" href="#">
+    <a id="nav-roulette" onclick="showGame('roulette')" class="side-nav-link flex items-center px-6 py-3 bg-gradient-to-r from-primary/20 to-transparent text-primary border-l-4 border-primary cursor-pointer">
       <span class="material-symbols-outlined mr-4 text-xl">refresh</span>
       <span class="font-label text-xs uppercase tracking-widest">Roulette</span>
+    </a>
+    <a id="nav-slots" onclick="showGame('slots')" class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer">
+      <span class="material-symbols-outlined mr-4 text-xl">interests</span>
+      <span class="font-label text-xs uppercase tracking-widest">Jednoręki Bandyta</span>
     </a>
     <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
       <span class="material-symbols-outlined mr-4 text-xl">stars</span>
@@ -135,6 +173,9 @@ tailwind.config = {
 
 <!-- Main -->
 <main class="md:ml-64 pt-24 pb-32 px-4 md:px-10 min-h-screen">
+
+<!-- ══════════ ROULETTE SECTION ══════════ -->
+<div id="roulette-section">
   <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
     <!-- Left: Stats -->
@@ -156,7 +197,6 @@ tailwind.config = {
         <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-primary mb-4">Last 10 Results</h3>
         <div id="last-results" class="grid grid-cols-5 gap-1.5"></div>
       </div>
-      <!-- Bet history log -->
       <div class="bg-surface-container-low p-5 rounded-lg">
         <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-3">Recent Rounds</h3>
         <div id="round-log" class="space-y-2 text-[11px] font-label text-gray-500 max-h-40 overflow-y-auto"></div>
@@ -165,7 +205,6 @@ tailwind.config = {
 
     <!-- Center: Wheel -->
     <div class="lg:col-span-6 flex flex-col items-center order-1 lg:order-2">
-      <!-- Wheel container -->
       <div class="relative w-full max-w-[380px] aspect-square mb-6">
         <!-- Outer glow ring -->
         <div class="absolute inset-0 rounded-full border-[10px] border-surface-container-highest" style="box-shadow: 0 0 60px -15px rgba(233,195,73,0.4)"></div>
@@ -173,8 +212,8 @@ tailwind.config = {
         <div class="absolute inset-3 rounded-full bg-gradient-to-tr from-[#0e0e0e] via-[#201f1f] to-[#0e0e0e] overflow-hidden flex items-center justify-center">
           <svg id="roulette-wheel" class="roulette-glow" viewBox="0 0 400 400" width="100%" height="100%"></svg>
         </div>
-        <!-- Ball orbit wrapper (counter-rotates while spinning) -->
-        <div id="ball-orbit-container" class="absolute inset-3 rounded-full pointer-events-none" style="display:none">
+        <!-- Ball orbit wrapper -->
+        <div id="ball-orbit-container" class="absolute inset-3 rounded-full pointer-events-none" style="display:none; overflow:visible">
           <div class="ball-orbit" id="ball-element">
             <div class="ball"></div>
           </div>
@@ -255,14 +294,10 @@ tailwind.config = {
   <!-- Betting Table -->
   <section class="max-w-6xl mx-auto mt-10 bg-surface-container-lowest p-1 rounded-xl shadow-2xl border border-white/5 overflow-x-auto">
     <div class="min-w-[700px]">
-      <!-- Number grid -->
       <div class="grid gap-0.5 mb-0.5" style="grid-template-columns: 56px 1fr">
-        <!-- Zero -->
         <div data-bet="n_0" onclick="placeBet('n_0')" class="bet-cell row-span-3 flex items-center justify-center bg-[#1a4d1a] text-[#6aff6a] font-headline text-xl border border-white/5 hover:bg-[#1a4d1a]/60" style="min-height:192px">0</div>
-        <!-- Number rows: 3 rows × 12 cols -->
         <div id="number-grid" class="grid grid-rows-3 gap-0.5" style="grid-template-rows: repeat(3, 64px)"></div>
       </div>
-      <!-- Outside bets row -->
       <div class="grid gap-0.5 mt-0.5" style="grid-template-columns: 56px repeat(3,1fr) repeat(3,1fr) repeat(3,1fr) 1fr">
         <div class="bg-transparent"></div>
         <button data-bet="col3" onclick="placeBet('col3')" class="bet-cell py-2 bg-surface-container border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">2:1</button>
@@ -289,6 +324,154 @@ tailwind.config = {
       <button data-bet="high" onclick="placeBet('high')" class="bet-cell py-3 bg-surface-container-lowest border border-white/5 text-gray-400 font-label text-[10px] tracking-widest uppercase text-center relative">19–36</button>
     </div>
   </div>
+</div><!-- /roulette-section -->
+
+<!-- ══════════ SLOT MACHINE SECTION ══════════ -->
+<div id="slots-section" class="hidden">
+  <div class="max-w-4xl mx-auto">
+    <h2 class="font-headline text-3xl text-center text-primary tracking-tight mb-2">Jednoręki Bandyta</h2>
+    <p class="text-center font-label text-[10px] tracking-[0.3em] uppercase text-gray-500 mb-10">One-Armed Bandit</p>
+
+    <div class="flex flex-col lg:flex-row gap-8 justify-center items-start">
+
+      <!-- Cabinet -->
+      <div class="flex-1 max-w-xl">
+        <!-- Machine body -->
+        <div class="bg-gradient-to-b from-surface-container-high to-surface-container p-8 rounded-2xl border border-white/10 shadow-2xl shadow-black/60 relative">
+
+          <!-- Top decoration -->
+          <div class="flex justify-center mb-6">
+            <div class="px-8 py-2 bg-primary/10 border border-primary/30 rounded-full">
+              <span class="font-headline text-primary text-xs tracking-[0.3em] uppercase">Jankowo Casino</span>
+            </div>
+          </div>
+
+          <!-- Reels + lever -->
+          <div class="flex items-center gap-4">
+            <div class="flex-1">
+              <!-- Reels container -->
+              <div class="relative bg-[#080808] p-3 rounded-xl border border-white/5 shadow-inner" style="box-shadow: inset 0 4px 20px rgba(0,0,0,0.8)">
+                <div class="flex gap-2 justify-center">
+                  <div class="slot-reel-window" id="reel-0"></div>
+                  <div class="slot-reel-window" id="reel-1"></div>
+                  <div class="slot-reel-window" id="reel-2"></div>
+                </div>
+                <!-- Win line -->
+                <div class="slot-win-line"></div>
+                <!-- Corner screws -->
+                <div class="absolute top-2 left-2 w-3 h-3 rounded-full bg-surface-container-highest border border-white/10"></div>
+                <div class="absolute top-2 right-2 w-3 h-3 rounded-full bg-surface-container-highest border border-white/10"></div>
+                <div class="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-surface-container-highest border border-white/10"></div>
+                <div class="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-surface-container-highest border border-white/10"></div>
+              </div>
+
+              <!-- Win result display -->
+              <div class="h-10 flex items-center justify-center mt-3">
+                <p id="slot-result-display" class="font-headline text-xl tracking-tight" style="display:none"></p>
+              </div>
+
+              <!-- Controls row -->
+              <div class="flex items-center justify-between gap-4 mt-2">
+                <div class="text-center">
+                  <p class="font-label text-[10px] tracking-widest text-gray-500 uppercase">Balance</p>
+                  <p id="slot-balance" class="font-headline text-lg text-primary tracking-tighter">$14,250.00</p>
+                </div>
+
+                <button id="slot-spin-btn" onclick="spinSlots()" class="spin-btn-glow px-8 py-4 bg-primary text-on-primary font-label font-bold tracking-[0.4em] text-sm hover:brightness-110 transition-all">
+                  PULL
+                </button>
+
+                <div class="text-center">
+                  <p class="font-label text-[10px] tracking-widest text-gray-500 uppercase">Chip</p>
+                  <p id="slot-chip-display" class="font-headline text-lg text-secondary tracking-tighter">$5</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lever -->
+            <div class="flex flex-col items-center cursor-pointer select-none" onclick="spinSlots()" title="Pull the lever!">
+              <!-- Ball -->
+              <div class="w-7 h-7 rounded-full bg-gradient-to-br from-secondary to-[#a02020] border-2 border-secondary/50 shadow-lg shadow-secondary/30 mb-1"></div>
+              <!-- Arm -->
+              <div id="lever-arm" class="w-3 rounded-full bg-gradient-to-r from-surface-container-highest to-surface-container-high border border-white/10" style="height: 120px; transform-origin: top center;"></div>
+              <!-- Base -->
+              <div class="w-8 h-4 rounded-md bg-surface-container-highest border border-white/10 mt-1"></div>
+            </div>
+          </div>
+
+          <!-- Bottom decoration -->
+          <div class="mt-6 flex justify-center gap-3">
+            <div class="w-2 h-2 rounded-full bg-primary/60"></div>
+            <div class="w-2 h-2 rounded-full bg-secondary/60"></div>
+            <div class="w-2 h-2 rounded-full bg-primary/60"></div>
+          </div>
+        </div>
+
+        <!-- Chip selector for slots -->
+        <div class="mt-4 bg-surface-container-low p-4 rounded-lg">
+          <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-3">Select Chip</h3>
+          <div class="flex flex-wrap gap-2 justify-center">
+            <button onclick="selectChip(1)" data-chip="1" class="chip-btn w-10 h-10 rounded-full bg-[#e5e2e1] text-black font-label font-bold text-[11px] border-2 border-dashed border-gray-400 flex items-center justify-center hover:scale-110 transition-transform">1</button>
+            <button onclick="selectChip(5)" data-chip="5" class="chip-btn w-10 h-10 rounded-full bg-secondary text-on-secondary font-label font-bold text-[11px] border-2 border-dashed border-white/30 flex items-center justify-center hover:scale-110 transition-transform">5</button>
+            <button onclick="selectChip(25)" data-chip="25" class="chip-btn w-10 h-10 rounded-full bg-primary text-on-primary font-label font-bold text-[11px] border-2 border-dashed border-white/30 flex items-center justify-center hover:scale-110 transition-transform">25</button>
+            <button onclick="selectChip(100)" data-chip="100" class="chip-btn w-10 h-10 rounded-full bg-surface-container-highest text-primary font-label font-bold text-[11px] border-2 border-dashed border-primary/50 flex items-center justify-center hover:scale-110 transition-transform">100</button>
+            <button onclick="selectChip(500)" data-chip="500" class="chip-btn w-10 h-10 rounded-full bg-tertiary-container text-tertiary font-label font-bold text-[10px] border-2 border-dashed border-tertiary/30 flex items-center justify-center hover:scale-110 transition-transform">500</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paytable -->
+      <div class="lg:w-56 bg-surface-container-low p-5 rounded-xl border border-white/5">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-primary mb-5">Pay Table</h3>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-on-surface tracking-wide">7 · 7 · 7</span>
+            <span class="font-headline text-primary text-sm font-bold">×50</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-on-surface tracking-wide">★ · ★ · ★</span>
+            <span class="font-headline text-primary text-sm font-bold">×20</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-on-surface tracking-wide">🔔 · 🔔 · 🔔</span>
+            <span class="font-headline text-primary text-sm font-bold">×10</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-on-surface tracking-wide">BAR BAR BAR</span>
+            <span class="font-headline text-primary text-sm font-bold">×8</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-on-surface tracking-wide">🍒 · 🍒 · 🍒</span>
+            <span class="font-headline text-secondary text-sm font-bold">×5</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-on-surface tracking-wide">🍋 · 🍋 · 🍋</span>
+            <span class="font-headline text-secondary text-sm font-bold">×5</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-on-surface tracking-wide">🍊 · 🍊 · 🍊</span>
+            <span class="font-headline text-secondary text-sm font-bold">×5</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 pb-2 border-b border-white/5">
+            <span class="font-label text-xs text-gray-500">Inne 3 takie same</span>
+            <span class="font-headline text-gray-400 text-sm font-bold">×3</span>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-label text-xs text-gray-500">Brak</span>
+            <span class="font-headline text-gray-600 text-sm font-bold">×0</span>
+          </div>
+        </div>
+
+        <!-- Last slot results -->
+        <div class="mt-6 pt-4 border-t border-white/5">
+          <h4 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-500 mb-3">Ostatnie wyniki</h4>
+          <div id="slot-history" class="space-y-1 max-h-32 overflow-y-auto text-[11px] font-label text-gray-500"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /slots-section -->
+
 </main>
 
 <!-- Bottom nav (mobile) -->
@@ -311,7 +494,7 @@ tailwind.config = {
   </a>
 </nav>
 
-<!-- Result Overlay -->
+<!-- Result Overlay (Roulette) -->
 <div id="result-overlay" class="fixed inset-0 z-[100] pointer-events-none" style="display:none">
   <div id="result-card" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-panel rounded-2xl p-8 text-center min-w-[240px] border border-white/10 shadow-2xl">
     <p class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-2">Winning Number</p>
@@ -323,7 +506,7 @@ tailwind.config = {
 </div>
 
 <script>
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const WHEEL_SEQ = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 const RED = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 const PAYOUTS = { n:35, red:1, black:1, even:1, odd:1, low:1, high:1, dozen1:2, dozen2:2, dozen3:2, col1:2, col2:2, col3:2 };
@@ -338,7 +521,7 @@ let state = {
   history: [14,33,1,20,0,5,22,9,11,36,32,17,8,3,25]
 };
 
-// ─── Color helpers ───────────────────────────────────────────────────────────
+// ─── Color helpers ─────────────────────────────────────────────────────────
 function numColor(n) { return n===0?'green': RED.has(n)?'red':'black'; }
 
 // ─── SVG Wheel ────────────────────────────────────────────────────────────────
@@ -371,7 +554,6 @@ function buildWheel() {
     </radialGradient>
   </defs>`;
 
-  // Background
   h+=`<circle cx="${cx}" cy="${cy}" r="${R+4}" fill="#0e0e0e"/>`;
 
   for(let i=0;i<N;i++){
@@ -379,14 +561,8 @@ function buildWheel() {
     const a1=i*APD, a2=(i+1)*APD, mid=(i+0.5)*APD;
     const col = num===0 ? '#1a4a1a' : RED.has(num) ? '#6b0f0f' : '#1a1a1a';
     const borderCol = num===0 ? '#2a7a2a' : RED.has(num) ? '#9b2020' : '#333';
-
-    // Colored sector
     h+=`<path d="${annularSector(cx,cy,R_INNER,R,a1,a2)}" fill="${col}" stroke="#111" stroke-width="0.8"/>`;
-
-    // Outer accent strip
     h+=`<path d="${annularSector(cx,cy,R-10,R,a1+0.3,a2-0.3)}" fill="${borderCol}" opacity="0.5"/>`;
-
-    // Number text
     const [tx,ty]=polar(cx,cy,R_TEXT,mid);
     const tCol = num===0 ? '#6aff6a' : '#e5e2e1';
     const tSize = num<10 ? 13 : 10;
@@ -396,16 +572,11 @@ function buildWheel() {
     >${num}</text>`;
   }
 
-  // Inner ring
   h+=`<circle cx="${cx}" cy="${cy}" r="${R_INNER}" fill="url(#innerG)" stroke="#333" stroke-width="1"/>`;
   h+=`<circle cx="${cx}" cy="${cy}" r="${R_INNER-8}" fill="#1a1a1a" stroke="#2a2a2a" stroke-width="0.5"/>`;
-
-  // Center hub
   h+=`<circle cx="${cx}" cy="${cy}" r="${R_HUB}" fill="url(#hubG)"/>`;
   h+=`<circle cx="${cx-4}" cy="${cy-4}" r="6" fill="white" opacity="0.18"/>`;
   h+=`<circle cx="${cx}" cy="${cy}" r="5" fill="#2a2000" opacity="0.9"/>`;
-
-  // Outer decorative ring
   h+=`<circle cx="${cx}" cy="${cy}" r="${R+1}" fill="none" stroke="#e9c349" stroke-width="1.5" opacity="0.3"/>`;
   h+=`<circle cx="${cx}" cy="${cy}" r="${R_INNER}" fill="none" stroke="#e9c349" stroke-width="0.8" opacity="0.2"/>`;
 
@@ -415,7 +586,6 @@ function buildWheel() {
 // ─── Number Table ─────────────────────────────────────────────────────────────
 function buildTable() {
   const grid = document.getElementById('number-grid');
-  // 3 rows × 12 cols. Row 3 = top: 3,6,9,...,36  Row2: 2,5,...,35  Row1: 1,4,...,34
   const rows = [
     [3,6,9,12,15,18,21,24,27,30,33,36],
     [2,5,8,11,14,17,20,23,26,29,32,35],
@@ -438,8 +608,10 @@ function buildTable() {
 function selectChip(val) {
   state.chip = val;
   document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('chip-active'));
-  document.querySelector(`[data-chip="${val}"]`).classList.add('chip-active');
+  document.querySelectorAll(`[data-chip="${val}"]`).forEach(b => b.classList.add('chip-active'));
   document.getElementById('chip-label').textContent = `$${val}`;
+  const sd = document.getElementById('slot-chip-display');
+  if(sd) sd.textContent = `$${val}`;
 }
 
 // ─── Place bet ────────────────────────────────────────────────────────────────
@@ -454,7 +626,6 @@ function placeBet(key) {
 
 function clearBets() {
   if(state.spinning) return;
-  // Refund all bets
   for(const v of Object.values(state.bets)) state.balance += v;
   state.bets = {};
   updateUI();
@@ -474,7 +645,7 @@ function doubleBets() {
   updateUI();
 }
 
-// ─── Spin ─────────────────────────────────────────────────────────────────────
+// ─── Spin (Roulette) ──────────────────────────────────────────────────────────
 function spin() {
   if(state.spinning) return;
   const totalBet = Object.values(state.bets).reduce((a,b)=>a+b,0);
@@ -484,29 +655,27 @@ function spin() {
   document.getElementById('spin-btn').disabled = true;
   document.getElementById('spin-btn').classList.add('opacity-50');
 
-  // Determine winner
-  const winNum = Math.floor(Math.random() * 37); // 0–36
-
-  // Calculate wheel rotation
+  const winNum = Math.floor(Math.random() * 37);
   const winIdx = WHEEL_SEQ.indexOf(winNum);
   const targetAngle = (winIdx + 0.5) * (360/37);
   const rem = state.wheelAngle % 360;
   const needed = (targetAngle - rem + 360) % 360;
   const newAngle = state.wheelAngle + 1800 + needed;
 
-  // Animate wheel
   const wheel = document.getElementById('roulette-wheel');
-  wheel.style.transition = 'none';
-  // Start ball animation
   startBall();
 
+  // Remove then re-add wheel-spinning so transition triggers correctly
+  wheel.classList.remove('wheel-spinning');
+  wheel.style.removeProperty('transition');
   requestAnimationFrame(() => {
-    wheel.classList.add('wheel-spinning');
-    wheel.style.transform = `rotate(${newAngle}deg)`;
-    state.wheelAngle = newAngle;
+    requestAnimationFrame(() => {
+      wheel.classList.add('wheel-spinning');
+      wheel.style.transform = `rotate(${newAngle}deg)`;
+      state.wheelAngle = newAngle;
+    });
   });
 
-  // After spin ends
   setTimeout(() => {
     stopBall();
     wheel.classList.remove('wheel-spinning');
@@ -514,21 +683,16 @@ function spin() {
     document.getElementById('spin-btn').disabled = false;
     document.getElementById('spin-btn').classList.remove('opacity-50');
 
-    // Resolve bets
     const {net, winnings} = resolveBets(winNum);
     state.balance += winnings;
     state.history.unshift(winNum);
     if(state.history.length > 50) state.history.pop();
 
-    // Log round
     logRound(winNum, net);
-
-    // Show result
     showResult(winNum, net);
     highlightWinCell(winNum);
     updateUI();
 
-    // Clear bets for next round
     setTimeout(() => { state.bets = {}; updateUI(); }, 3500);
   }, 5300);
 }
@@ -537,9 +701,15 @@ function startBall() {
   const c = document.getElementById('ball-orbit-container');
   const b = document.getElementById('ball-element');
   c.style.display = 'block';
+  b.classList.remove('ball-spinning-slow', 'ball-spinning-fast');
+  void b.offsetWidth;
   b.classList.add('ball-spinning-fast');
-  setTimeout(() => { b.classList.remove('ball-spinning-fast'); b.classList.add('ball-spinning-slow'); }, 3000);
+  setTimeout(() => {
+    b.classList.remove('ball-spinning-fast');
+    b.classList.add('ball-spinning-slow');
+  }, 3000);
 }
+
 function stopBall() {
   const c = document.getElementById('ball-orbit-container');
   const b = document.getElementById('ball-element');
@@ -580,14 +750,10 @@ function resolveBets(winNum) {
 
 // ─── UI Updates ───────────────────────────────────────────────────────────────
 function updateUI() {
-  // Balance
   document.getElementById('balance-display').textContent = '$'+state.balance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-
-  // Current bet
   const totalBet = Object.values(state.bets).reduce((a,b)=>a+b,0);
   document.getElementById('current-bet-display').textContent = '$'+totalBet.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 
-  // Bet chips
   document.querySelectorAll('.bet-chip').forEach(c=>c.remove());
   for(const [key,amount] of Object.entries(state.bets)) {
     if(amount<=0) continue;
@@ -600,12 +766,13 @@ function updateUI() {
     });
   }
 
-  // Stats
+  const sb = document.getElementById('slot-balance');
+  if(sb) sb.textContent = '$'+state.balance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
   updateStats();
 }
 
 function updateStats() {
-  // Last 10 results
   const lr = document.getElementById('last-results');
   const last10 = state.history.slice(0,10);
   lr.innerHTML = last10.map(n => {
@@ -614,7 +781,6 @@ function updateStats() {
     return `<div class="h-8 flex items-center justify-center ${bg} text-xs font-bold rounded-sm font-label">${n}</div>`;
   }).join('');
 
-  // Hot / cold
   const freq = {};
   for(let i=0;i<=36;i++) freq[i]=0;
   state.history.forEach(n=>freq[n]++);
@@ -654,7 +820,7 @@ function showResult(num, net) {
     amount.textContent = `+$${net.toLocaleString('en-US',{minimumFractionDigits:2})}`;
     amount.style.color = '#e9c349';
   } else if(net < 0) {
-    outcome.textContent = 'Stawiasz 200 pigwy 🐷';
+    outcome.textContent = 'Stawiasz 200 pigwy';
     outcome.style.color = '#ffb4a8';
     amount.textContent = `-$${Math.abs(net).toLocaleString('en-US',{minimumFractionDigits:2})}`;
     amount.style.color = '#ffb4a8';
@@ -667,7 +833,7 @@ function showResult(num, net) {
 
   overlay.style.display = 'block';
   card.className = card.className.replace('result-card-exit','').replace('result-card-enter','');
-  void card.offsetWidth; // reflow
+  void card.offsetWidth;
   card.classList.add('result-card-enter');
 
   setTimeout(() => {
@@ -677,7 +843,6 @@ function showResult(num, net) {
 }
 
 function highlightWinCell(num) {
-  // Highlight number cell
   const cell = document.querySelector(`[data-bet="n_${num}"]`);
   if(cell) {
     cell.classList.add('win-cell','win-pulse');
@@ -706,9 +871,172 @@ function showToast(msg) {
   setTimeout(()=>t.remove(), 2500);
 }
 
+// ─── Tab Navigation ───────────────────────────────────────────────────────────
+function showGame(game) {
+  const activeClass = 'side-nav-link flex items-center px-6 py-3 bg-gradient-to-r from-primary/20 to-transparent text-primary border-l-4 border-primary cursor-pointer';
+  const inactiveClass = 'side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer';
+
+  document.getElementById('nav-roulette').className = game==='roulette' ? activeClass : inactiveClass;
+  document.getElementById('nav-slots').className    = game==='slots'    ? activeClass : inactiveClass;
+
+  document.getElementById('roulette-section').classList.toggle('hidden', game !== 'roulette');
+  document.getElementById('slots-section').classList.toggle('hidden',    game !== 'slots');
+}
+
+// ─── Slot Machine ─────────────────────────────────────────────────────────────
+const SLOT_SYMS   = ['7', '★', '🔔', 'BAR', '🍒', '🍋', '🍊'];
+const SLOT_CLASSES= ['sym-7','sym-star','','sym-bar','','',''];
+const SLOT_SYM_H  = 80;  // px
+const SLOT_WIN_ROW = 1;  // center row (0-indexed)
+const SLOT_REPEATS = 14; // full symbol cycles in strip
+const SLOT_PAY = {
+  '7,7,7': 50, '★,★,★': 20, '🔔,🔔,🔔': 10,
+  'BAR,BAR,BAR': 8,
+  '🍒,🍒,🍒': 5, '🍋,🍋,🍋': 5, '🍊,🍊,🍊': 5
+};
+
+let slotState = {
+  spinning: false,
+  strips: [],
+  reelResults: [0, 0, 0]
+};
+
+function buildSlotMachine() {
+  slotState.strips = [];
+  for (let r = 0; r < 3; r++) {
+    const reelEl = document.getElementById(`reel-${r}`);
+    if (!reelEl) continue;
+    reelEl.innerHTML = '';
+    const strip = document.createElement('div');
+    strip.className = 'slot-strip';
+    strip.id = `slot-strip-${r}`;
+
+    for (let rep = 0; rep < SLOT_REPEATS; rep++) {
+      for (let s = 0; s < SLOT_SYMS.length; s++) {
+        const cell = document.createElement('div');
+        cell.className = 'slot-cell' + (SLOT_CLASSES[s] ? ' ' + SLOT_CLASSES[s] : '');
+        cell.textContent = SLOT_SYMS[s];
+        strip.appendChild(cell);
+      }
+    }
+
+    reelEl.appendChild(strip);
+    slotState.strips.push(strip);
+
+    // Initial: show symbol 0 at center
+    const initOffset = SLOT_WIN_ROW * SLOT_SYM_H;
+    strip.style.transform = `translateY(${initOffset}px)`;
+  }
+}
+
+function spinSlots() {
+  if (slotState.spinning) return;
+  const bet = state.chip;
+  if (state.balance < bet) { showToast('Niewystarczające środki!'); return; }
+
+  state.balance -= bet;
+  updateUI();
+  slotState.spinning = true;
+
+  const spinBtn = document.getElementById('slot-spin-btn');
+  spinBtn.disabled = true;
+  spinBtn.classList.add('opacity-50');
+
+  // Lever animation
+  const lever = document.getElementById('lever-arm');
+  if (lever) {
+    lever.classList.add('lever-pulling');
+    setTimeout(() => lever.classList.remove('lever-pulling'), 500);
+  }
+
+  // Hide previous result
+  const rd = document.getElementById('slot-result-display');
+  rd.style.display = 'none';
+
+  // Random results
+  const results = Array.from({length: 3}, () => Math.floor(Math.random() * SLOT_SYMS.length));
+  slotState.reelResults = results;
+
+  // Spin each reel with staggered stops
+  for (let r = 0; r < 3; r++) {
+    const strip = slotState.strips[r];
+    const targetIdx = results[r];
+    const cycles = 5 + Math.floor(Math.random() * 4); // 5–8 full cycles
+
+    // targetOffset: symbol[targetIdx] at win row
+    // strip.top + targetIdx * SLOT_SYM_H = SLOT_WIN_ROW * SLOT_SYM_H
+    // → strip.top = SLOT_WIN_ROW * SLOT_SYM_H - targetIdx * SLOT_SYM_H - cycles * total
+    const targetOffset = SLOT_WIN_ROW * SLOT_SYM_H
+      - targetIdx * SLOT_SYM_H
+      - cycles * SLOT_SYMS.length * SLOT_SYM_H;
+
+    const startDelay = r * 250;
+    const duration   = 2000 + r * 350;
+
+    setTimeout(() => {
+      strip.style.transition = `transform ${duration}ms cubic-bezier(0.12, 0.82, 0.2, 1)`;
+      strip.style.transform  = `translateY(${targetOffset}px)`;
+    }, startDelay);
+  }
+
+  // Last reel finishes at: 2*250 + 2000+2*350 = 500+2700 = 3200ms
+  const resolveAt = 2 * 250 + 2000 + 2 * 350 + 400;
+
+  setTimeout(() => {
+    const syms = results.map(i => SLOT_SYMS[i]);
+    const key  = syms.join(',');
+    const mult = SLOT_PAY[key] !== undefined ? SLOT_PAY[key]
+               : (syms[0]===syms[1] && syms[1]===syms[2]) ? 3 : 0;
+    const winAmt = mult * bet;
+
+    if (winAmt > 0) {
+      state.balance += winAmt;
+      document.querySelectorAll('.slot-reel-window').forEach(w => w.classList.add('slot-win-flash'));
+      setTimeout(() => document.querySelectorAll('.slot-reel-window').forEach(w => w.classList.remove('slot-win-flash')), 1800);
+      rd.textContent = `WIN! +$${winAmt.toLocaleString('en-US',{minimumFractionDigits:2})}`;
+      rd.style.color = '#e9c349';
+    } else {
+      rd.textContent = 'Stawiasz 200 pigwy';
+      rd.style.color = '#ffb4a8';
+    }
+    rd.style.display = 'block';
+
+    logSlot(syms, winAmt > 0 ? winAmt - bet : -bet);
+    updateUI();
+
+    // Reset strips to near-top position after a short delay
+    setTimeout(() => {
+      for (let r = 0; r < 3; r++) {
+        const strip = slotState.strips[r];
+        strip.style.transition = 'none';
+        const resetOffset = SLOT_WIN_ROW * SLOT_SYM_H - results[r] * SLOT_SYM_H;
+        strip.style.transform  = `translateY(${resetOffset}px)`;
+        void strip.offsetWidth; // force reflow
+      }
+      slotState.spinning = false;
+      spinBtn.disabled = false;
+      spinBtn.classList.remove('opacity-50');
+    }, 500);
+
+  }, resolveAt);
+}
+
+function logSlot(syms, net) {
+  const log = document.getElementById('slot-history');
+  if (!log) return;
+  const div = document.createElement('div');
+  div.className = 'flex justify-between items-center py-1 border-b border-white/5';
+  const sign = net >= 0 ? '+' : '';
+  div.innerHTML = `<span class="text-on-surface">${syms.join(' ')}</span>
+    <span class="${net>=0?'text-primary':'text-secondary'}">${sign}$${Math.abs(net).toFixed(0)}</span>`;
+  log.prepend(div);
+  if (log.children.length > 10) log.lastChild.remove();
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 buildWheel();
 buildTable();
+buildSlotMachine();
 selectChip(5);
 updateUI();
 </script>
