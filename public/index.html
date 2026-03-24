@@ -128,6 +128,27 @@ tailwind.config = {
 @media (max-width: 400px) {
   .slot-reels-wrap { transform: scale(0.88); transform-origin: top center; }
 }
+/* ─── Blackjack Cards ──────────────────────────────────────────────────────── */
+.bj-card {
+  width: 64px; height: 90px; background: #f5f0e8; color: #1a1a1a;
+  border-radius: 6px; display: flex; flex-direction: column;
+  align-items: flex-start; justify-content: flex-start;
+  padding: 5px 7px; font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700; font-size: 15px; position: relative;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4);
+  animation: cardDeal 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  flex-shrink: 0;
+}
+.bj-card.red { color: #cc1f1f; }
+.bj-card .suit { font-size: 20px; position: absolute; bottom: 4px; right: 6px; }
+.bj-card.face-down {
+  background: repeating-linear-gradient(135deg,#1c1b1b 0 4px,#2a2929 4px 8px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.7);
+}
+@keyframes cardDeal {
+  from { transform: translateY(-24px) scale(0.82); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
 </style>
 </head>
 <body class="bg-background text-on-surface font-body selection:bg-primary/30 selection:text-primary overflow-x-hidden">
@@ -165,6 +186,10 @@ tailwind.config = {
     <a id="nav-slots" onclick="showGame('slots')" class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer">
       <span class="material-symbols-outlined mr-4 text-xl">interests</span>
       <span class="font-label text-xs uppercase tracking-widest">Jednoręki Bandyta</span>
+    </a>
+    <a id="nav-blackjack" onclick="showGame('blackjack')" class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer">
+      <span class="material-symbols-outlined mr-4 text-xl">playing_cards</span>
+      <span class="font-label text-xs uppercase tracking-widest">Blackjack</span>
     </a>
     <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
       <span class="material-symbols-outlined mr-4 text-xl">stars</span>
@@ -524,6 +549,138 @@ tailwind.config = {
   </div>
 </div><!-- /slots-section -->
 
+<!-- ══════════ BLACKJACK SECTION ══════════ -->
+<div id="blackjack-section" class="hidden">
+  <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+    <!-- Left: Stats & History -->
+    <div class="lg:col-span-3 space-y-4 order-2 lg:order-1">
+      <div class="bg-surface-container-low p-5 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-secondary mb-4">Session Stats</h3>
+        <div class="space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="font-label text-[11px] text-gray-500 uppercase">Wins</span>
+            <span id="bj-stat-wins" class="font-label text-sm text-primary font-bold">0</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-label text-[11px] text-gray-500 uppercase">Losses</span>
+            <span id="bj-stat-losses" class="font-label text-sm text-secondary font-bold">0</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-label text-[11px] text-gray-500 uppercase">Pushes</span>
+            <span id="bj-stat-pushes" class="font-label text-sm text-gray-400 font-bold">0</span>
+          </div>
+          <div class="flex justify-between items-center border-t border-white/5 pt-3">
+            <span class="font-label text-[11px] text-gray-500 uppercase">Net</span>
+            <span id="bj-stat-net" class="font-label text-sm font-bold text-primary">$0</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-surface-container-low p-5 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-3">Round History</h3>
+        <div id="bj-history" class="space-y-2 text-[11px] font-label text-gray-500 max-h-60 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- Center: Table -->
+    <div class="lg:col-span-6 flex flex-col items-center order-1 lg:order-2">
+      <div class="w-full">
+        <!-- Game area -->
+        <div class="bg-surface-container rounded-xl p-6 mb-4" style="border:1px solid rgba(233,195,73,0.15); min-height:460px; display:flex; flex-direction:column; gap:12px;">
+
+          <!-- Dealer -->
+          <div class="flex flex-col items-center gap-2">
+            <div class="flex items-center gap-2">
+              <span class="font-label text-[10px] tracking-[0.25em] uppercase text-gray-500">Dealer</span>
+              <span id="bj-dealer-value" class="font-label text-xs text-gray-400 font-bold"></span>
+            </div>
+            <div id="bj-dealer-hand" class="flex flex-wrap justify-center gap-2 min-h-[96px] items-center"></div>
+          </div>
+
+          <!-- Result message -->
+          <div id="bj-result-msg" class="text-center py-2 hidden">
+            <p id="bj-result-text" class="font-headline text-2xl tracking-tight"></p>
+            <p id="bj-result-sub" class="font-label text-xs text-gray-400 uppercase tracking-widest mt-1"></p>
+          </div>
+
+          <div class="border-t border-white/5 mx-2"></div>
+
+          <!-- Player -->
+          <div class="flex flex-col items-center gap-2">
+            <div id="bj-player-hand" class="flex flex-wrap justify-center gap-2 min-h-[96px] items-center"></div>
+            <div class="flex items-center gap-2">
+              <span class="font-label text-[10px] tracking-[0.25em] uppercase text-gray-500">Your Hand</span>
+              <span id="bj-player-value" class="font-label text-xs text-primary font-bold"></span>
+            </div>
+          </div>
+
+          <!-- Bet display -->
+          <div class="text-center mt-auto pt-2">
+            <p class="font-label text-[9px] text-gray-500 uppercase tracking-widest">Current Bet</p>
+            <p id="bj-current-bet" class="font-headline text-xl text-primary tracking-tight">$0.00</p>
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <button id="bj-btn-hit" onclick="bjHit()" disabled
+            class="py-4 font-label font-bold text-xs tracking-[0.3em] uppercase bg-surface-container-high text-on-surface hover:bg-primary hover:text-on-primary transition-all disabled:opacity-30 disabled:pointer-events-none">
+            HIT
+          </button>
+          <button id="bj-btn-stand" onclick="bjStand()" disabled
+            class="py-4 font-label font-bold text-xs tracking-[0.3em] uppercase bg-surface-container-high text-on-surface hover:bg-primary hover:text-on-primary transition-all disabled:opacity-30 disabled:pointer-events-none">
+            STAND
+          </button>
+          <button id="bj-btn-double" onclick="bjDouble()" disabled
+            class="py-4 font-label font-bold text-xs tracking-[0.3em] uppercase bg-surface-container-high text-on-surface hover:bg-primary hover:text-on-primary transition-all disabled:opacity-30 disabled:pointer-events-none">
+            DOUBLE
+          </button>
+          <button id="bj-btn-deal" onclick="bjDeal()" disabled
+            class="spin-btn-glow py-4 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.3em] uppercase hover:brightness-110 transition-all disabled:opacity-40 disabled:pointer-events-none">
+            DEAL
+          </button>
+        </div>
+
+        <!-- Chip selector -->
+        <div class="bg-surface-container-low p-4 rounded-lg">
+          <p class="font-label text-[9px] tracking-[0.3em] uppercase text-gray-500 mb-3 text-center">Click chip to place bet</p>
+          <div id="bj-chip-row" class="flex justify-center gap-2 flex-wrap"></div>
+          <div class="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
+            <div>
+              <p class="font-label text-[9px] text-gray-500 uppercase">Balance</p>
+              <p id="bj-balance" class="font-headline text-sm text-primary">$0</p>
+            </div>
+            <button onclick="bjClearBet()" class="font-label text-[10px] text-secondary uppercase tracking-widest hover:text-secondary/80 transition-colors">Clear Bet</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Rules -->
+    <div class="lg:col-span-3 space-y-4 order-3">
+      <div class="bg-surface-container-low p-5 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-primary mb-4">Payouts</h3>
+        <div class="space-y-2.5">
+          <div class="flex justify-between"><span class="font-label text-[11px] text-gray-400">Blackjack</span><span class="font-label text-[11px] text-primary font-bold">3:2</span></div>
+          <div class="flex justify-between"><span class="font-label text-[11px] text-gray-400">Win</span><span class="font-label text-[11px] text-primary font-bold">1:1</span></div>
+          <div class="flex justify-between"><span class="font-label text-[11px] text-gray-400">Push</span><span class="font-label text-[11px] text-gray-400 font-bold">Bet Back</span></div>
+        </div>
+      </div>
+      <div class="bg-surface-container-low p-5 rounded-lg">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-3">Rules</h3>
+        <ul class="space-y-2">
+          <li class="font-label text-[10px] text-gray-500 leading-relaxed">• Dealer stands on soft 17</li>
+          <li class="font-label text-[10px] text-gray-500 leading-relaxed">• Double down on any 2 cards</li>
+          <li class="font-label text-[10px] text-gray-500 leading-relaxed">• Blackjack pays 3:2</li>
+          <li class="font-label text-[10px] text-gray-500 leading-relaxed">• Fresh deck each hand</li>
+          <li class="font-label text-[10px] text-gray-500 leading-relaxed">• Click chips to add to bet</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /blackjack-section -->
+
 </main>
 
 <!-- Bottom nav (mobile) -->
@@ -539,6 +696,11 @@ tailwind.config = {
       class="flex-1 flex items-center justify-center gap-2 py-2.5 text-gray-500 border-b-2 border-transparent transition-all">
       <span class="material-symbols-outlined text-base">interests</span>
       <span class="font-label text-[10px] uppercase tracking-widest">Bandyta</span>
+    </button>
+    <button id="mob-nav-blackjack" onclick="showGame('blackjack')"
+      class="flex-1 flex items-center justify-center gap-2 py-2.5 text-gray-500 border-b-2 border-transparent transition-all">
+      <span class="material-symbols-outlined text-base">playing_cards</span>
+      <span class="font-label text-[10px] uppercase tracking-widest">Blackjack</span>
     </button>
   </div>
   <!-- Balance bar -->
@@ -945,18 +1107,21 @@ function showGame(game) {
   // Sidebar (desktop)
   const sideActive   = 'side-nav-link flex items-center px-6 py-3 bg-gradient-to-r from-primary/20 to-transparent text-primary border-l-4 border-primary cursor-pointer';
   const sideInactive = 'side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer';
-  document.getElementById('nav-roulette').className = game==='roulette' ? sideActive : sideInactive;
-  document.getElementById('nav-slots').className    = game==='slots'    ? sideActive : sideInactive;
+  document.getElementById('nav-roulette').className  = game==='roulette'  ? sideActive : sideInactive;
+  document.getElementById('nav-slots').className     = game==='slots'     ? sideActive : sideInactive;
+  document.getElementById('nav-blackjack').className = game==='blackjack' ? sideActive : sideInactive;
 
   // Bottom nav (mobile)
   const mobActive   = 'flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-primary/15 to-transparent border-b-2 border-primary text-primary transition-all';
   const mobInactive = 'flex-1 flex items-center justify-center gap-2 py-2.5 text-gray-500 border-b-2 border-transparent transition-all';
-  document.getElementById('mob-nav-roulette').className = game==='roulette' ? mobActive : mobInactive;
-  document.getElementById('mob-nav-slots').className    = game==='slots'    ? mobActive : mobInactive;
+  document.getElementById('mob-nav-roulette').className  = game==='roulette'  ? mobActive : mobInactive;
+  document.getElementById('mob-nav-slots').className     = game==='slots'     ? mobActive : mobInactive;
+  document.getElementById('mob-nav-blackjack').className = game==='blackjack' ? mobActive : mobInactive;
 
   // Sections
-  document.getElementById('roulette-section').classList.toggle('hidden', game !== 'roulette');
-  document.getElementById('slots-section').classList.toggle('hidden',    game !== 'slots');
+  document.getElementById('roulette-section').classList.toggle('hidden',  game !== 'roulette');
+  document.getElementById('slots-section').classList.toggle('hidden',     game !== 'slots');
+  document.getElementById('blackjack-section').classList.toggle('hidden', game !== 'blackjack');
 }
 
 // ─── Slot Machine ─────────────────────────────────────────────────────────────
@@ -1132,10 +1297,241 @@ function logSlot(syms, net) {
   if (log.children.length > 10) log.lastChild.remove();
 }
 
+// ─── Blackjack ────────────────────────────────────────────────────────────────
+let bjState = {
+  deck: [], playerHand: [], dealerHand: [],
+  bet: 0, phase: 'betting',
+  wins: 0, losses: 0, pushes: 0, net: 0
+};
+
+function bjBuildDeck() {
+  const suits = ['♠','♥','♦','♣'];
+  const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const deck = [];
+  for (const s of suits) for (const r of ranks) deck.push({rank:r, suit:s, red: s==='♥'||s==='♦'});
+  for (let i = deck.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]] = [deck[j],deck[i]];
+  }
+  return deck;
+}
+
+function bjCardVal(rank) {
+  if (rank==='A') return 11;
+  if (['J','Q','K'].includes(rank)) return 10;
+  return parseInt(rank);
+}
+
+function bjHandVal(hand) {
+  let total=0, aces=0;
+  for (const c of hand) {
+    if (c.hidden) continue;
+    total += bjCardVal(c.rank);
+    if (c.rank==='A') aces++;
+  }
+  while (total>21 && aces>0) { total-=10; aces--; }
+  return total;
+}
+
+function bjCardEl(card) {
+  const el = document.createElement('div');
+  if (card.hidden) { el.className='bj-card face-down'; return el; }
+  el.className = 'bj-card'+(card.red?' red':'');
+  el.innerHTML = `<span>${card.rank}</span><span class="suit">${card.suit}</span>`;
+  return el;
+}
+
+function bjRender() {
+  const ph = document.getElementById('bj-player-hand');
+  const dh = document.getElementById('bj-dealer-hand');
+  ph.innerHTML=''; dh.innerHTML='';
+  bjState.playerHand.forEach(c => ph.appendChild(bjCardEl(c)));
+  bjState.dealerHand.forEach(c => dh.appendChild(bjCardEl(c)));
+  const pv = bjHandVal(bjState.playerHand);
+  document.getElementById('bj-player-value').textContent = bjState.playerHand.length ? pv : '';
+  const hasHidden = bjState.dealerHand.some(c=>c.hidden);
+  const dv = bjHandVal(bjState.dealerHand);
+  document.getElementById('bj-dealer-value').textContent = bjState.dealerHand.length ? (hasHidden?'?':dv) : '';
+}
+
+function bjUpdateBtns() {
+  const playing  = bjState.phase==='playing';
+  const canDeal  = bjState.phase==='betting' && bjState.bet>0;
+  const canDouble= playing && bjState.playerHand.length===2 && state.balance>=bjState.bet;
+  document.getElementById('bj-btn-hit').disabled    = !playing;
+  document.getElementById('bj-btn-stand').disabled  = !playing;
+  document.getElementById('bj-btn-double').disabled = !canDouble;
+  document.getElementById('bj-btn-deal').disabled   = !canDeal;
+}
+
+function bjSyncUI() {
+  document.getElementById('bj-current-bet').textContent =
+    '$'+bjState.bet.toLocaleString('en-US',{minimumFractionDigits:2});
+  document.getElementById('bj-balance').textContent =
+    '$'+state.balance.toLocaleString('en-US',{minimumFractionDigits:2});
+}
+
+function bjShowResult(text, sub, color) {
+  const msg = document.getElementById('bj-result-msg');
+  document.getElementById('bj-result-text').textContent = text;
+  document.getElementById('bj-result-text').style.color = color||'#e9c349';
+  document.getElementById('bj-result-sub').textContent  = sub||'';
+  msg.classList.remove('hidden');
+}
+
+function bjDeal() {
+  if (bjState.phase!=='betting'||bjState.bet<=0) return;
+  document.getElementById('bj-result-msg').classList.add('hidden');
+  bjState.deck = bjBuildDeck();
+  bjState.playerHand = [bjState.deck.pop(), bjState.deck.pop()];
+  bjState.dealerHand = [bjState.deck.pop(), {...bjState.deck.pop(), hidden:true}];
+  bjState.phase = 'playing';
+  bjRender(); bjUpdateBtns();
+
+  // Natural blackjack check
+  if (bjHandVal(bjState.playerHand)===21) {
+    bjState.dealerHand[1].hidden=false;
+    const dv = bjHandVal(bjState.dealerHand);
+    if (dv===21) {
+      bjState.phase='done';
+      state.balance += bjState.bet;
+      bjRender(); bjShowResult('PUSH','Both have Blackjack','#e5e2e1');
+      bjLog('Push (BJ-BJ)', 0); bjState.pushes++;
+    } else {
+      const winAmt = Math.floor(bjState.bet*1.5);
+      state.balance += bjState.bet + winAmt;
+      bjState.phase='done';
+      bjRender(); bjShowResult('BLACKJACK!',`+$${(bjState.bet+winAmt).toFixed(0)}`,'#e9c349');
+      bjLog('Blackjack!', winAmt); bjState.wins++; bjState.net+=winAmt;
+    }
+    bjFinish(); return;
+  }
+  bjSyncUI();
+}
+
+function bjHit() {
+  if (bjState.phase!=='playing') return;
+  bjState.playerHand.push(bjState.deck.pop());
+  bjRender();
+  const v = bjHandVal(bjState.playerHand);
+  if (v>21) {
+    bjState.dealerHand[1].hidden=false; bjState.phase='done';
+    bjRender(); bjShowResult('BUST!','Stawiasz 200 pigwy','#ffb4a8');
+    bjLog('Bust', -bjState.bet); bjState.losses++; bjState.net-=bjState.bet;
+    bjFinish();
+  } else if (v===21) { bjStand(); }
+  else { bjUpdateBtns(); }
+}
+
+function bjStand() {
+  if (bjState.phase!=='playing') return;
+  bjState.phase='dealer';
+  bjState.dealerHand[1].hidden=false;
+  bjRender();
+  setTimeout(function drawDealer(){
+    const dv=bjHandVal(bjState.dealerHand);
+    if (dv<17) {
+      bjState.dealerHand.push(bjState.deck.pop());
+      bjRender(); setTimeout(drawDealer,600);
+    } else { bjResolve(); }
+  }, 700);
+}
+
+function bjDouble() {
+  if (bjState.phase!=='playing'||bjState.playerHand.length!==2) return;
+  if (state.balance<bjState.bet) return;
+  state.balance -= bjState.bet; bjState.bet *= 2;
+  bjState.playerHand.push(bjState.deck.pop());
+  bjRender(); bjSyncUI(); updateUI();
+  const v=bjHandVal(bjState.playerHand);
+  if (v>21) {
+    bjState.dealerHand[1].hidden=false; bjState.phase='done';
+    bjRender(); bjShowResult('BUST!','Stawiasz 200 pigwy','#ffb4a8');
+    bjLog('Bust (Double)', -bjState.bet); bjState.losses++; bjState.net-=bjState.bet;
+    bjFinish();
+  } else { bjStand(); }
+}
+
+function bjResolve() {
+  const pv=bjHandVal(bjState.playerHand), dv=bjHandVal(bjState.dealerHand);
+  bjState.phase='done'; bjRender();
+  if (dv>21) {
+    state.balance+=bjState.bet*2; bjShowResult('DEALER BUSTS!',`+$${bjState.bet.toFixed(0)}`,'#e9c349');
+    bjLog('Win (dealer bust)', bjState.bet); bjState.wins++; bjState.net+=bjState.bet;
+  } else if (pv>dv) {
+    state.balance+=bjState.bet*2; bjShowResult('YOU WIN!',`+$${bjState.bet.toFixed(0)}`,'#e9c349');
+    bjLog('Win', bjState.bet); bjState.wins++; bjState.net+=bjState.bet;
+  } else if (dv>pv) {
+    bjShowResult('YOU LOSE','Stawiasz 200 pigwy','#ffb4a8');
+    bjLog('Loss', -bjState.bet); bjState.losses++; bjState.net-=bjState.bet;
+  } else {
+    state.balance+=bjState.bet; bjShowResult('PUSH','Bet returned','#e5e2e1');
+    bjLog('Push', 0); bjState.pushes++;
+  }
+  bjFinish(); updateUI();
+}
+
+function bjFinish() {
+  bjUpdateBtns();
+  // Update stats panel
+  document.getElementById('bj-stat-wins').textContent   = bjState.wins;
+  document.getElementById('bj-stat-losses').textContent = bjState.losses;
+  document.getElementById('bj-stat-pushes').textContent = bjState.pushes;
+  const ne = document.getElementById('bj-stat-net');
+  ne.textContent = (bjState.net>=0?'+$':'-$')+Math.abs(bjState.net).toFixed(0);
+  ne.style.color = bjState.net>=0 ? '#e9c349' : '#ffb4a8';
+  // Reset for next hand after delay
+  setTimeout(()=>{
+    bjState.phase='betting'; bjState.bet=0;
+    bjState.playerHand=[]; bjState.dealerHand=[];
+    bjRender(); document.getElementById('bj-result-msg').classList.add('hidden');
+    bjSyncUI(); bjUpdateBtns();
+  }, 2500);
+}
+
+function bjClearBet() {
+  if (bjState.phase!=='betting') return;
+  state.balance += bjState.bet; bjState.bet=0;
+  updateUI(); bjSyncUI(); bjUpdateBtns();
+}
+
+function bjLog(result, net) {
+  const log = document.getElementById('bj-history');
+  if (!log) return;
+  const d = document.createElement('div');
+  d.className='flex justify-between items-center py-1 border-b border-white/5';
+  const sign = net>=0?'+':'';
+  d.innerHTML=`<span class="text-on-surface text-[11px]">${result}</span>
+    <span class="text-[11px] ${net>0?'text-primary':net<0?'text-secondary':'text-gray-500'}">${sign}$${Math.abs(net).toFixed(0)}</span>`;
+  log.prepend(d);
+  if (log.children.length>12) log.lastChild.remove();
+}
+
+function bjInit() {
+  const row = document.getElementById('bj-chip-row');
+  if (!row) return;
+  [1,5,25,100,500].forEach(v=>{
+    const btn = document.createElement('button');
+    btn.className='chip-btn w-12 h-12 rounded-full font-label font-bold text-[10px] transition-all border-2 border-dashed border-white/30 text-on-primary bg-primary hover:brightness-110 active:scale-95';
+    btn.dataset.chip = v;
+    btn.textContent = v>=1000?(v/1000)+'K':v;
+    btn.onclick=()=>{
+      selectChip(v);
+      if (bjState.phase==='betting' && state.balance>=v) {
+        state.balance-=v; bjState.bet+=v;
+        updateUI(); bjSyncUI(); bjUpdateBtns();
+      }
+    };
+    row.appendChild(btn);
+  });
+  bjSyncUI(); bjUpdateBtns();
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 buildWheel();
 buildTable();
 buildSlotMachine();
+bjInit();
 selectChip(5);
 updateUI();
 </script>
