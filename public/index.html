@@ -1142,7 +1142,8 @@ let slotState = {
   reelResults: [0, 0, 0],
   wins: 0,
   losses: 0,
-  bestWin: 0
+  bestWin: 0,
+  winRate: 0.25 + Math.random() * 0.10  // random 25–35% per session
 };
 
 function buildSlotMachine() {
@@ -1198,8 +1199,9 @@ function spinSlots() {
   rd.style.display = 'none';
 
   // 50% win rate: half the time force matching triple, half the time guarantee a loss
+  // Win rate randomized between 25–35% per session
   let results;
-  if (Math.random() < 0.5) {
+  if (Math.random() < slotState.winRate) {
     const sym = Math.floor(Math.random() * SLOT_SYMS.length);
     results = [sym, sym, sym];
   } else {
