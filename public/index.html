@@ -1197,8 +1197,16 @@ function spinSlots() {
   const rd = document.getElementById('slot-result-display');
   rd.style.display = 'none';
 
-  // Random results
-  const results = Array.from({length: 3}, () => Math.floor(Math.random() * SLOT_SYMS.length));
+  // 50% win rate: half the time force matching triple, half the time guarantee a loss
+  let results;
+  if (Math.random() < 0.5) {
+    const sym = Math.floor(Math.random() * SLOT_SYMS.length);
+    results = [sym, sym, sym];
+  } else {
+    do {
+      results = Array.from({length: 3}, () => Math.floor(Math.random() * SLOT_SYMS.length));
+    } while (results[0] === results[1] && results[1] === results[2]);
+  }
   slotState.reelResults = results;
 
   // Spin each reel with staggered stops
