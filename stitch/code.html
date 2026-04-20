@@ -1,0 +1,301 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Grand Horizon | Roulette VIP</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@700;900&amp;family=Manrope:wght@400;500;600&amp;family=Space+Grotesk:wght@300;500;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-highest": "#353534",
+                        "on-secondary-fixed-variant": "#920703",
+                        "error-container": "#93000a",
+                        "secondary-fixed": "#ffdad4",
+                        "tertiary": "#ffb3b2",
+                        "surface-bright": "#3a3939",
+                        "surface-container": "#201f1f",
+                        "on-secondary-container": "#ff9a8a",
+                        "on-primary-container": "#d0ab33",
+                        "surface-container-high": "#2a2a2a",
+                        "surface-container-lowest": "#0e0e0e",
+                        "primary-fixed": "#ffe088",
+                        "on-primary-fixed": "#241a00",
+                        "inverse-on-surface": "#313030",
+                        "surface-container-low": "#1c1b1b",
+                        "outline": "#aa8984",
+                        "primary-container": "#524000",
+                        "primary": "#e9c349",
+                        "tertiary-container": "#8a001d",
+                        "tertiary-fixed-dim": "#ffb3b2",
+                        "on-error": "#690005",
+                        "on-primary-fixed-variant": "#574500",
+                        "surface-dim": "#131313",
+                        "secondary": "#ffb4a8",
+                        "on-tertiary-fixed-variant": "#920020",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#131313",
+                        "on-tertiary": "#680014",
+                        "inverse-primary": "#735c00",
+                        "on-tertiary-fixed": "#410008",
+                        "tertiary-fixed": "#ffdad9",
+                        "outline-variant": "#5a403c",
+                        "surface-variant": "#353534",
+                        "error": "#ffb4ab",
+                        "inverse-surface": "#e5e2e1",
+                        "secondary-fixed-dim": "#ffb4a8",
+                        "secondary-container": "#920703",
+                        "on-surface-variant": "#e3beb8",
+                        "background": "#131313",
+                        "primary-fixed-dim": "#e9c349",
+                        "on-background": "#e5e2e1",
+                        "on-surface": "#e5e2e1",
+                        "on-primary": "#3c2f00",
+                        "on-tertiary-container": "#ff8f90",
+                        "on-secondary": "#690000",
+                        "surface-tint": "#e9c349",
+                        "on-secondary-fixed": "#410000"
+                    },
+                    fontFamily: {
+                        "headline": ["Noto Serif"],
+                        "body": ["Manrope"],
+                        "label": ["Space Grotesk"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .roulette-glow {
+            box-shadow: 0 0 60px -15px rgba(233, 195, 73, 0.3);
+        }
+        .glass-panel {
+            background: rgba(53, 53, 52, 0.6);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary/30 selection:text-primary">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center px-6 py-4 w-full fixed top-0 bg-[#131313] dark:bg-[#131313] z-50 shadow-2xl shadow-red-900/10 bg-gradient-to-b from-[#131313] to-transparent">
+<div class="text-2xl font-black text-[#e9c349] dark:text-[#e9c349] tracking-tighter font-headline uppercase" style="">
+            Jankowo CASINO</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-[#ffb4a8] transition-colors duration-300 active:scale-95 transition-transform" href="#" style="">Lobby</a>
+<a class="text-[#e9c349] font-bold border-b-2 border-[#e9c349] font-label uppercase tracking-widest text-xs hover:text-[#ffb4a8] transition-colors duration-300 active:scale-95 transition-transform" href="#" style="">Roulette</a>
+<a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-[#ffb4a8] transition-colors duration-300 active:scale-95 transition-transform" href="#" style="">VIP Lounge</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-[#e9c349] active:scale-95 transition-transform" data-icon="account_balance_wallet" style="">account_balance_wallet</button>
+<button class="material-symbols-outlined text-[#e9c349] active:scale-95 transition-transform" data-icon="notifications" style="">notifications</button>
+<button class="material-symbols-outlined text-[#e9c349] active:scale-95 transition-transform" data-icon="account_circle" style="">account_circle</button>
+</div>
+</header>
+<!-- SideNavBar (Desktop Only) -->
+<aside class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 z-40 bg-[#131313] dark:bg-[#131313] py-8 border-r border-[#ffffff]/10 shadow-[10px_0_30px_rgba(0,0,0,0.5)]">
+<div class="px-6 mb-12 mt-16">
+<h2 class="font-headline text-[#e9c349] text-xl font-black tracking-tight" style="">The High-Roller</h2>
+<p class="font-label text-gray-500 text-[10px] tracking-widest uppercase" style="">Prestige Level</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center px-6 py-3 text-gray-500 hover:text-[#e9c349]/70 hover:bg-[#ffffff]/5 transition-all hover:translate-x-1 duration-200 group" href="#" style="">
+<span class="material-symbols-outlined mr-4" data-icon="casino" style="">casino</span>
+<span class="font-label text-xs uppercase tracking-widest" style="">Lobby</span>
+</a>
+<a class="flex items-center px-6 py-3 bg-gradient-to-r from-[#e9c349]/20 to-transparent text-[#e9c349] border-l-4 border-[#e9c349] hover:bg-[#ffffff]/5 transition-all hover:translate-x-1 duration-200" href="#" style="">
+<span class="material-symbols-outlined mr-4" data-icon="refresh" style="">refresh</span>
+<span class="font-label text-xs uppercase tracking-widest" style="">Roulette</span>
+</a>
+<a class="flex items-center px-6 py-3 text-gray-500 hover:text-[#e9c349]/70 hover:bg-[#ffffff]/5 transition-all hover:translate-x-1 duration-200" href="#" style="">
+<span class="material-symbols-outlined mr-4" data-icon="stars" style="">stars</span>
+<span class="font-label text-xs uppercase tracking-widest" style="">VIP Lounge</span>
+</a>
+<a class="flex items-center px-6 py-3 text-gray-500 hover:text-[#e9c349]/70 hover:bg-[#ffffff]/5 transition-all hover:translate-x-1 duration-200" href="#" style="">
+<span class="material-symbols-outlined mr-4" data-icon="history" style="">history</span>
+<span class="font-label text-xs uppercase tracking-widest" style="">History</span>
+</a>
+</nav>
+<div class="px-6 mt-auto space-y-4">
+<button class="w-full py-4 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.2em] shadow-lg shadow-primary/20 active:scale-95 transition-transform" style="">
+                DEPOSIT GOLD
+            </button>
+<div class="flex justify-between pt-4 border-t border-white/5">
+<button class="material-symbols-outlined text-gray-500 hover:text-[#e9c349]" data-icon="settings" style="">settings</button>
+<button class="material-symbols-outlined text-gray-500 hover:text-[#e9c349]" data-icon="help_outline" style="">help_outline</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:ml-64 pt-24 pb-32 px-4 md:px-12 min-h-screen">
+<!-- Game Stage -->
+<div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Left Side: Results & Stats -->
+<div class="lg:col-span-3 space-y-6 order-2 lg:order-1">
+<div class="surface-container-low p-6 rounded-lg">
+<h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-secondary mb-4" style="">Live Statistics</h3>
+<div class="space-y-4">
+<div>
+<p class="text-[10px] font-label text-gray-500 uppercase mb-2" style="">Hot Numbers</p>
+<div class="flex gap-2">
+<span class="w-10 h-10 rounded-full border border-secondary/30 flex items-center justify-center text-secondary font-headline" style="">32</span>
+<span class="w-10 h-10 rounded-full border border-primary/30 flex items-center justify-center text-primary font-headline" style="">15</span>
+<span class="w-10 h-10 rounded-full border border-primary/30 flex items-center justify-center text-primary font-headline" style="">19</span>
+</div>
+</div>
+<div>
+<p class="text-[10px] font-label text-gray-500 uppercase mb-2" style="">Cold Numbers</p>
+<div class="flex gap-2">
+<span class="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-on-surface font-headline" style="">0</span>
+<span class="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-on-surface font-headline" style="">21</span>
+<span class="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-on-surface font-headline" style="">7</span>
+</div>
+</div>
+</div>
+</div>
+<div class="surface-container-high p-6 rounded-lg glass-panel">
+<h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-primary mb-4" style="">Last 10 Results</h3>
+<div class="grid grid-cols-5 gap-2">
+<div class="h-8 flex items-center justify-center bg-secondary-container text-secondary text-xs font-bold rounded-sm" style="">14</div>
+<div class="h-8 flex items-center justify-center bg-surface-container-highest text-on-surface text-xs font-bold rounded-sm" style="">33</div>
+<div class="h-8 flex items-center justify-center bg-secondary-container text-secondary text-xs font-bold rounded-sm" style="">1</div>
+<div class="h-8 flex items-center justify-center bg-surface-container-highest text-on-surface text-xs font-bold rounded-sm" style="">20</div>
+<div class="h-8 flex items-center justify-center bg-primary-container text-primary text-xs font-bold rounded-sm" style="">0</div>
+<div class="h-8 flex items-center justify-center bg-secondary-container text-secondary text-xs font-bold rounded-sm" style="">5</div>
+<div class="h-8 flex items-center justify-center bg-surface-container-highest text-on-surface text-xs font-bold rounded-sm" style="">22</div>
+<div class="h-8 flex items-center justify-center bg-secondary-container text-secondary text-xs font-bold rounded-sm" style="">9</div>
+<div class="h-8 flex items-center justify-center bg-surface-container-highest text-on-surface text-xs font-bold rounded-sm" style="">11</div>
+<div class="h-8 flex items-center justify-center bg-secondary-container text-secondary text-xs font-bold rounded-sm" style="">36</div>
+</div>
+</div>
+</div>
+<!-- Central: The Drum Roulette -->
+<div class="lg:col-span-6 flex flex-col items-center justify-center order-1 lg:order-2">
+<div class="relative w-full max-w-md aspect-square mb-8">
+<!-- Outer Decorative Ring -->
+<div class="absolute inset-0 rounded-full border-[12px] border-surface-container-highest roulette-glow opacity-50"></div>
+<!-- The Main Drum -->
+<div class="absolute inset-4 rounded-full bg-gradient-to-tr from-[#0e0e0e] via-[#201f1f] to-[#0e0e0e] flex items-center justify-center overflow-hidden shadow-inner border border-white/5">
+<img alt="Roulette Wheel" class="w-[120%] h-[120%] object-contain opacity-80" data-alt="Top down view of a luxury wooden casino roulette wheel with polished mahogany finish and gold numerical dividers in dramatic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvPR7ndVSidfYCAfAKYPJcAfue1cA_9bDIfrdulf7MF2OUcTVmfYL2NHt-t_o1glBEMaUENSVYvdoWP2G0DfdqR8QFrcBkd_j-2eC032Zv4QCw5gSOGKMZT5gl1mPA_MGahxJlrEvJilmMtTbZBORM4tfQO5mhW9QnrOSvNoHXuusPKR3MAtArE2wM8gyXKFKA_y5jmWJxRD0huOiLrug6bd6SuGBINbx6jso5v6i1wSoH_NPp8svgliLrUXinCljNzTXpJxvfH_wN" style="">
+<!-- Center Gold Pin -->
+<div class="absolute w-12 h-12 rounded-full bg-gradient-to-b from-primary to-primary-container shadow-2xl z-10 flex items-center justify-center">
+<div class="w-2 h-2 rounded-full bg-white/40 blur-sm"></div>
+</div>
+</div>
+</div>
+<!-- Action Controls -->
+<div class="flex items-center gap-8 w-full justify-center">
+<div class="text-center">
+<p class="font-label text-[10px] tracking-widest text-gray-500 uppercase" style="">Balance</p>
+<p class="font-headline text-2xl text-primary tracking-tighter" style="">$14,250.00</p>
+</div>
+<button class="px-12 py-5 bg-primary text-on-primary font-label font-bold tracking-[0.4em] text-sm shadow-[0_0_40px_rgba(233,195,73,0.4)] active:scale-90 transition-all hover:brightness-110" style="">
+                        SPIN
+                    </button>
+<div class="text-center">
+<p class="font-label text-[10px] tracking-widest text-gray-500 uppercase" style="">Current Bet</p>
+<p class="font-headline text-2xl text-secondary tracking-tighter" style="">$500.00</p>
+</div>
+</div>
+</div>
+<!-- Right Side: Betting Board -->
+<div class="lg:col-span-3 space-y-4 order-3">
+<div class="surface-container-low p-4 rounded-lg">
+<h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-4" style="">Quick Bets</h3>
+<div class="grid grid-cols-2 gap-3">
+<button class="py-3 bg-secondary-container/20 border border-secondary/20 text-secondary font-label text-[10px] tracking-widest uppercase hover:bg-secondary-container/40 transition-colors" style="">Red</button>
+<button class="py-3 bg-surface-container-highest/40 border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase hover:bg-surface-container-highest/60 transition-colors" style="">Black</button>
+<button class="py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase hover:bg-surface-container-highest/60 transition-colors" style="">Even</button>
+<button class="py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase hover:bg-surface-container-highest/60 transition-colors" style="">Odd</button>
+<button class="py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase hover:bg-surface-container-highest/60 transition-colors" style="">1-18</button>
+<button class="py-3 bg-surface-container-low border border-white/10 text-on-surface font-label text-[10px] tracking-widest uppercase hover:bg-surface-container-highest/60 transition-colors" style="">19-36</button>
+</div>
+</div>
+<div class="surface-container-low p-4 rounded-lg">
+<h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-gray-400 mb-4" style="">Select Chip</h3>
+<div class="flex flex-wrap gap-2 justify-center">
+<button class="w-10 h-10 rounded-full bg-[#e5e2e1] text-black font-bold text-[10px] border-2 border-dashed border-gray-400 flex items-center justify-center hover:scale-110 transition-transform" style="">1</button>
+<button class="w-10 h-10 rounded-full bg-secondary text-on-secondary font-bold text-[10px] border-2 border-dashed border-white/30 flex items-center justify-center hover:scale-110 transition-transform ring-2 ring-secondary ring-offset-2 ring-offset-background" style="">5</button>
+<button class="w-10 h-10 rounded-full bg-primary text-on-primary font-bold text-[10px] border-2 border-dashed border-white/30 flex items-center justify-center hover:scale-110 transition-transform" style="">25</button>
+<button class="w-10 h-10 rounded-full bg-surface-container-highest text-primary font-bold text-[10px] border-2 border-dashed border-primary/50 flex items-center justify-center hover:scale-110 transition-transform" style="">100</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Betting Grid (The Table) -->
+<section class="max-w-6xl mx-auto mt-12 bg-surface-container-lowest p-1 rounded-xl shadow-2xl border border-white/5 overflow-x-auto">
+<div class="min-w-[800px] grid grid-cols-[auto_1fr] gap-0.5">
+<!-- Zero Slot -->
+<div class="w-16 flex items-center justify-center bg-primary-container text-primary font-headline text-2xl border border-white/5" style="">0</div>
+<!-- Main Grid -->
+<div class="grid grid-cols-12 grid-rows-3 gap-0.5">
+<!-- Row 3 -->
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">3</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">6</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">9</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">12</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">15</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">18</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">21</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">24</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">27</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">30</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">33</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">36</div>
+<!-- Row 2 -->
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">2</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">5</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">8</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">11</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">14</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">17</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">20</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">23</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">26</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">29</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">32</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">35</div>
+<!-- Row 1 -->
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">1</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">4</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">7</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">10</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">13</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">16</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">19</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">22</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">25</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">28</div>
+<div class="h-16 flex items-center justify-center bg-surface-container-highest text-on-surface border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">31</div>
+<div class="h-16 flex items-center justify-center bg-secondary-container text-secondary border border-white/5 font-bold hover:bg-white/10 transition-colors" style="">34</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pt-3 pb-6 md:hidden bg-[#131313]/90 backdrop-blur-xl border-t border-[#ffffff]/5 shadow-[0_-8px_32px_rgba(139,0,0,0.15)] z-50">
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#ffb4a8] active:scale-90 transition-all duration-150" href="#" style="">
+<span class="material-symbols-outlined" data-icon="home" style="">home</span>
+<span class="font-label text-[10px] uppercase tracking-wider" style="">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e9c349] scale-110 active:scale-90 transition-all duration-150" href="#" style="">
+<span class="material-symbols-outlined" data-icon="monetization_on" style="">monetization_on</span>
+<span class="font-label text-[10px] uppercase tracking-wider" style="">Bets</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#ffb4a8] active:scale-90 transition-all duration-150" href="#" style="">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet" style="">account_balance_wallet</span>
+<span class="font-label text-[10px] uppercase tracking-wider" style="">Wallet</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#ffb4a8] active:scale-90 transition-all duration-150" href="#" style="">
+<span class="material-symbols-outlined" data-icon="person" style="">person</span>
+<span class="font-label text-[10px] uppercase tracking-wider" style="">Profile</span>
+</a>
+</nav>
+</body></html>

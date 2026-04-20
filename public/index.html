@@ -128,6 +128,63 @@ tailwind.config = {
 @media (max-width: 400px) {
   .slot-reels-wrap { transform: scale(0.88); transform-origin: top center; }
 }
+/* ─── Poker ────────────────────────────────────────────────────────────────── */
+.poker-card {
+  width: 52px; height: 74px; background: #f5f0e8; color: #1a1a1a;
+  border-radius: 6px; display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: flex-start; padding: 4px 6px; font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700; font-size: 14px; position: relative;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.55); flex-shrink: 0;
+  animation: cardDeal 0.22s cubic-bezier(0.34,1.56,0.64,1);
+}
+.poker-card.red { color: #cc1f1f; }
+.poker-card .ps { font-size: 16px; position: absolute; bottom: 3px; right: 5px; }
+.poker-card.face-down {
+  background: repeating-linear-gradient(135deg,#1c1b1b 0 4px,#2a2929 4px 8px);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.7);
+}
+.poker-card.community { width: 60px; height: 86px; font-size: 15px; }
+.poker-card.community .ps { font-size: 18px; }
+.poker-seat {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-width: 70px; position: relative;
+}
+.poker-seat-label {
+  font-family: 'Space Grotesk', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: #e5e2e1;
+  background: rgba(32,31,31,0.9); border: 1px solid rgba(255,255,255,0.08);
+  padding: 3px 8px; border-radius: 2px; white-space: nowrap;
+}
+.poker-seat-chips {
+  font-family: 'Space Grotesk', sans-serif; font-size: 10px; color: #e9c349;
+  letter-spacing: 0.04em;
+}
+.poker-seat-bet {
+  font-family: 'Space Grotesk', sans-serif; font-size: 10px; color: #ffb4a8;
+  letter-spacing: 0.04em; min-height: 14px;
+}
+.poker-seat.is-active .poker-seat-label {
+  border-color: rgba(233,195,73,0.7); color: #e9c349;
+  box-shadow: 0 0 12px rgba(233,195,73,0.3);
+}
+.poker-seat.is-dealer .poker-seat-label::before {
+  content: 'D '; color: #e9c349;
+}
+.poker-seat.is-folded { opacity: 0.4; }
+.poker-action-bar button {
+  padding: 10px 20px; font-family: 'Space Grotesk', sans-serif; font-size: 11px;
+  font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; transition: all 0.15s;
+  border: 1px solid; cursor: pointer;
+}
+.poker-action-bar button:disabled { opacity: 0.35; cursor: not-allowed; }
+.poker-action-bar button:active:not(:disabled) { transform: scale(0.94); }
+.poker-table-felt {
+  background: radial-gradient(ellipse at 50% 40%, #0d3320 0%, #071a10 100%);
+  border: 3px solid rgba(233,195,73,0.25);
+  box-shadow: inset 0 0 60px rgba(0,0,0,0.7), 0 0 40px rgba(0,0,0,0.5);
+}
+@keyframes pokerPulse { 0%,100%{box-shadow:0 0 12px rgba(233,195,73,0.3)} 50%{box-shadow:0 0 30px rgba(233,195,73,0.8)} }
+.poker-seat.is-active .poker-seat-label { animation: pokerPulse 1s ease-in-out infinite; }
 /* ─── Blackjack Cards ──────────────────────────────────────────────────────── */
 .bj-card {
   width: 64px; height: 90px; background: #f5f0e8; color: #1a1a1a;
@@ -190,6 +247,10 @@ tailwind.config = {
     <a id="nav-blackjack" onclick="showGame('blackjack')" class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer">
       <span class="material-symbols-outlined mr-4 text-xl">playing_cards</span>
       <span class="font-label text-xs uppercase tracking-widest">Blackjack</span>
+    </a>
+    <a id="nav-poker" onclick="showGame('poker')" class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer">
+      <span class="material-symbols-outlined mr-4 text-xl">style</span>
+      <span class="font-label text-xs uppercase tracking-widest">Texas Hold'em</span>
     </a>
     <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
       <span class="material-symbols-outlined mr-4 text-xl">stars</span>
@@ -681,6 +742,99 @@ tailwind.config = {
   </div>
 </div><!-- /blackjack-section -->
 
+<!-- ══════════ POKER SECTION ══════════ -->
+<div id="poker-section" class="hidden">
+  <div class="max-w-5xl mx-auto">
+
+    <!-- Section header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="font-headline text-2xl text-primary font-black tracking-tight">Texas Hold'em</h2>
+        <p class="font-label text-[10px] text-gray-500 tracking-widest uppercase">Multiplayer · 3 Tables</p>
+      </div>
+      <div id="poker-player-badge" class="hidden items-center gap-3 bg-surface-container-low px-4 py-2 rounded-lg border border-white/5">
+        <span class="material-symbols-outlined text-primary text-base">account_circle</span>
+        <div>
+          <p id="poker-nick-display" class="font-label text-xs text-primary font-bold"></p>
+          <p id="poker-chips-display" class="font-label text-[10px] text-gray-400"></p>
+        </div>
+        <button onclick="pokerLeave()" class="ml-2 font-label text-[10px] uppercase tracking-widest text-gray-500 hover:text-secondary transition-colors">Wyjdź</button>
+      </div>
+    </div>
+
+    <!-- Login / Room lobby -->
+    <div id="poker-lobby">
+      <!-- Name form -->
+      <div id="poker-name-form" class="mb-8 bg-surface-container-low p-6 rounded-lg border border-white/5 max-w-sm">
+        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-secondary mb-4">Nick gracza</h3>
+        <div class="flex gap-2">
+          <input id="poker-nick-input" type="text" maxlength="16" placeholder="Twój nick..."
+            class="flex-1 bg-surface-container border border-white/10 text-on-surface font-label text-sm px-4 py-2.5 rounded focus:outline-none focus:border-primary/60 placeholder-gray-600"
+            onkeydown="if(event.key==='Enter')pokerSetNick()">
+          <button onclick="pokerSetNick()" class="px-5 py-2.5 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all">OK</button>
+        </div>
+        <p id="poker-nick-error" class="font-label text-[10px] text-secondary mt-2 hidden"></p>
+      </div>
+
+      <!-- Rooms -->
+      <div id="poker-rooms-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4 hidden">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- Game table (hidden until joined) -->
+    <div id="poker-table-wrap" class="hidden">
+
+      <!-- Table felt -->
+      <div class="poker-table-felt rounded-2xl p-6 mb-4">
+
+        <!-- Top: opponents row -->
+        <div id="poker-opponents-row" class="flex justify-center gap-6 mb-6 flex-wrap">
+          <!-- filled by JS -->
+        </div>
+
+        <!-- Community cards + pot -->
+        <div class="flex flex-col items-center gap-3 mb-6">
+          <div class="flex items-center gap-2">
+            <span class="font-label text-[10px] uppercase tracking-widest text-gray-400 mr-2">Pot</span>
+            <span id="poker-pot" class="font-headline text-xl text-primary font-black">$0</span>
+            <span id="poker-round-badge" class="ml-4 font-label text-[10px] uppercase tracking-widest px-3 py-1 bg-black/40 border border-white/10 text-gray-400"></span>
+          </div>
+          <div id="poker-community" class="flex gap-2 min-h-[86px] items-center justify-center">
+            <div class="font-label text-[10px] text-gray-600 uppercase tracking-widest">Karty wspólne pojawią się tutaj</div>
+          </div>
+        </div>
+
+        <!-- My seat -->
+        <div class="flex flex-col items-center gap-3">
+          <div id="poker-my-cards" class="flex gap-2 min-h-[74px] items-center justify-center">
+            <div class="font-label text-[10px] text-gray-600 uppercase tracking-widest">Twoje karty</div>
+          </div>
+          <div id="poker-my-info" class="poker-seat-label text-center"></div>
+        </div>
+
+      </div>
+
+      <!-- Action bar -->
+      <div id="poker-action-bar" class="poker-action-bar flex items-center gap-3 justify-center flex-wrap mb-4">
+        <button id="pk-fold"  onclick="pokerAction('fold')"  class="border-secondary/60 text-secondary hover:bg-secondary/10">Pas (Fold)</button>
+        <button id="pk-check" onclick="pokerAction('check')" class="border-primary/60 text-primary hover:bg-primary/10">Check</button>
+        <button id="pk-call"  onclick="pokerAction('call')"  class="border-primary/60 text-primary hover:bg-primary/10">Call</button>
+        <div class="flex items-center gap-2">
+          <input id="pk-raise-amt" type="number" min="20" step="10" value="40"
+            class="w-24 bg-surface-container border border-white/10 text-on-surface font-label text-sm px-3 py-2 rounded focus:outline-none focus:border-primary/60">
+          <button id="pk-raise" onclick="pokerAction('raise')" class="border-primary/60 text-primary hover:bg-primary/10">Raise</button>
+        </div>
+      </div>
+
+      <!-- Status message -->
+      <div id="poker-status" class="text-center font-label text-sm text-gray-400 mb-4 min-h-[20px]"></div>
+
+    </div>
+
+  </div>
+</div><!-- /poker-section -->
+
 </main>
 
 <!-- Bottom nav (mobile) -->
@@ -701,6 +855,11 @@ tailwind.config = {
       class="flex-1 flex items-center justify-center gap-2 py-2.5 text-gray-500 border-b-2 border-transparent transition-all">
       <span class="material-symbols-outlined text-base">playing_cards</span>
       <span class="font-label text-[10px] uppercase tracking-widest">Blackjack</span>
+    </button>
+    <button id="mob-nav-poker" onclick="showGame('poker')"
+      class="flex-1 flex items-center justify-center gap-2 py-2.5 text-gray-500 border-b-2 border-transparent transition-all">
+      <span class="material-symbols-outlined text-base">style</span>
+      <span class="font-label text-[10px] uppercase tracking-widest">Poker</span>
     </button>
   </div>
   <!-- Balance bar -->
@@ -727,6 +886,7 @@ tailwind.config = {
   </div>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script>
 // ─── Constants ────────────────────────────────────────────────────────────────
 const WHEEL_SEQ = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
@@ -1110,6 +1270,7 @@ function showGame(game) {
   document.getElementById('nav-roulette').className  = game==='roulette'  ? sideActive : sideInactive;
   document.getElementById('nav-slots').className     = game==='slots'     ? sideActive : sideInactive;
   document.getElementById('nav-blackjack').className = game==='blackjack' ? sideActive : sideInactive;
+  document.getElementById('nav-poker').className     = game==='poker'     ? sideActive : sideInactive;
 
   // Bottom nav (mobile)
   const mobActive   = 'flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-primary/15 to-transparent border-b-2 border-primary text-primary transition-all';
@@ -1117,11 +1278,15 @@ function showGame(game) {
   document.getElementById('mob-nav-roulette').className  = game==='roulette'  ? mobActive : mobInactive;
   document.getElementById('mob-nav-slots').className     = game==='slots'     ? mobActive : mobInactive;
   document.getElementById('mob-nav-blackjack').className = game==='blackjack' ? mobActive : mobInactive;
+  document.getElementById('mob-nav-poker').className     = game==='poker'     ? mobActive : mobInactive;
 
   // Sections
   document.getElementById('roulette-section').classList.toggle('hidden',  game !== 'roulette');
   document.getElementById('slots-section').classList.toggle('hidden',     game !== 'slots');
   document.getElementById('blackjack-section').classList.toggle('hidden', game !== 'blackjack');
+  document.getElementById('poker-section').classList.toggle('hidden',     game !== 'poker');
+
+  if (game === 'poker') pokerOnEnter();
 }
 
 // ─── Slot Machine ─────────────────────────────────────────────────────────────
@@ -1535,6 +1700,289 @@ function bjInit() {
     row.appendChild(btn);
   });
   bjSyncUI(); bjUpdateBtns();
+}
+
+// ─── Poker ────────────────────────────────────────────────────────────────────
+const POKER_HAND_NAMES = ['Wysoka karta','Para','Dwie pary','Trójka','Strit','Kolor','Full','Kareta','Poker'];
+
+let pokerSocket = null;
+let pokerState = {
+  nick: '',
+  roomId: null,
+  myId: null,
+  room: null,
+  myCards: [],
+  showdown: null,
+};
+
+function pokerOnEnter() {
+  if (!pokerSocket) pokerInitSocket();
+  pokerRefreshLobby();
+}
+
+function pokerInitSocket() {
+  pokerSocket = io();
+  pokerState.myId = pokerSocket.id;
+
+  pokerSocket.on('connect', () => {
+    pokerState.myId = pokerSocket.id;
+    pokerSocket.emit('rooms:list');
+  });
+
+  pokerSocket.on('rooms:list', (rooms) => {
+    pokerRenderRooms(rooms);
+  });
+
+  pokerSocket.on('room:joined', ({ roomId, name, chips }) => {
+    pokerState.roomId = roomId;
+    pokerState.nick = name;
+    pokerShowTable();
+    pokerSetStatus('Czekamy na graczy...');
+  });
+
+  pokerSocket.on('room:update', (room) => {
+    pokerState.room = room;
+    pokerState.myId = pokerSocket.id;
+    pokerRenderTable();
+  });
+
+  pokerSocket.on('player:cards', (cards) => {
+    pokerState.myCards = cards;
+    pokerRenderMyCards();
+  });
+
+  pokerSocket.on('showdown', (data) => {
+    pokerState.showdown = data;
+    pokerRenderShowdown(data);
+  });
+
+  pokerSocket.on('error', (msg) => {
+    pokerShowError(msg);
+  });
+}
+
+function pokerRefreshLobby() {
+  if (pokerSocket && pokerSocket.connected) pokerSocket.emit('rooms:list');
+}
+
+function pokerSetNick() {
+  const input = document.getElementById('poker-nick-input');
+  const nick = input.value.trim();
+  if (nick.length < 2) {
+    pokerShowError('Nick musi mieć min. 2 znaki'); return;
+  }
+  pokerState.nick = nick;
+  document.getElementById('poker-name-form').classList.add('hidden');
+  document.getElementById('poker-rooms-grid').classList.remove('hidden');
+  document.getElementById('poker-nick-display').textContent = nick;
+  if (pokerSocket) pokerSocket.emit('rooms:list');
+}
+
+function pokerShowError(msg) {
+  const el = document.getElementById('poker-nick-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 3000);
+  showToast(msg);
+}
+
+function pokerRenderRooms(rooms) {
+  const grid = document.getElementById('poker-rooms-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  rooms.forEach(room => {
+    const full = room.playerCount >= room.maxPlayers;
+    const div = document.createElement('div');
+    div.className = 'bg-surface-container-low border border-white/5 rounded-lg p-5 flex flex-col gap-3 ' + (full ? 'opacity-50' : 'hover:border-primary/30 transition-colors cursor-pointer');
+    div.innerHTML = `
+      <div class="flex items-center justify-between">
+        <h4 class="font-headline text-primary text-lg font-black">${room.name}</h4>
+        <span class="font-label text-[10px] uppercase tracking-widest px-2 py-1 rounded ${room.state==='playing'?'bg-secondary/20 text-secondary':'bg-primary/10 text-primary'}">${room.state==='playing'?'W grze':'Oczekuje'}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-gray-500 text-base">group</span>
+        <span class="font-label text-xs text-gray-400">${room.playerCount} / ${room.maxPlayers} graczy</span>
+      </div>
+      <div class="text-[10px] font-label text-gray-500 uppercase tracking-widest">Blind: 10 / 20 · Start: $1000</div>
+      ${full ? '<div class="font-label text-[10px] text-secondary uppercase tracking-widest">Stolik pełny</div>' :
+        `<button onclick="pokerJoinRoom(${room.id})" class="w-full py-2.5 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all mt-1">DOŁĄCZ</button>`}
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function pokerJoinRoom(roomId) {
+  if (!pokerState.nick) { pokerShowError('Najpierw ustaw nick'); return; }
+  if (!pokerSocket || !pokerSocket.connected) { pokerInitSocket(); return; }
+  pokerSocket.emit('room:join', { roomId, name: pokerState.nick });
+}
+
+function pokerShowTable() {
+  document.getElementById('poker-lobby').classList.add('hidden');
+  document.getElementById('poker-table-wrap').classList.remove('hidden');
+  const badge = document.getElementById('poker-player-badge');
+  badge.classList.remove('hidden');
+  badge.classList.add('flex');
+}
+
+function pokerRenderTable() {
+  const room = pokerState.room;
+  if (!room) return;
+
+  // Pot + round
+  document.getElementById('poker-pot').textContent = '$' + room.pot.toLocaleString('en-US');
+  const roundNames = { preflop: 'Pre-flop', flop: 'Flop', turn: 'Turn', river: 'River' };
+  document.getElementById('poker-round-badge').textContent = roundNames[room.round] || room.round;
+
+  // Community cards
+  pokerRenderCommunity(room.community);
+
+  // My info
+  const me = room.players.find(p => p.id === pokerState.myId);
+  const myInfoEl = document.getElementById('poker-my-info');
+  if (me) {
+    document.getElementById('poker-nick-display').textContent = me.name;
+    document.getElementById('poker-chips-display').textContent = '$' + me.chips.toLocaleString('en-US');
+    myInfoEl.textContent = me.name + ' · $' + me.chips.toLocaleString('en-US') + (me.bet ? ' · Bet: $' + me.bet : '');
+    myInfoEl.className = 'poker-seat-label text-center' + (me.folded ? ' opacity-40' : '');
+  }
+
+  // Other players
+  const opponentsRow = document.getElementById('poker-opponents-row');
+  opponentsRow.innerHTML = '';
+  room.players.filter(p => p.id !== pokerState.myId).forEach((p, i) => {
+    const isActive = room.actionIdx !== -1 && room.players[room.actionIdx]?.id === p.id;
+    const isDealer = room.dealerIdx !== -1 && room.players[room.dealerIdx]?.id === p.id;
+    const seat = document.createElement('div');
+    seat.className = 'poker-seat' +
+      (isActive ? ' is-active' : '') +
+      (isDealer ? ' is-dealer' : '') +
+      (p.folded  ? ' is-folded' : '');
+    // Show face-down cards or just count
+    let cardsHtml = '';
+    for (let c = 0; c < p.cardCount; c++) {
+      cardsHtml += `<div class="poker-card face-down" style="width:40px;height:58px;font-size:10px;"></div>`;
+    }
+    seat.innerHTML = `
+      <div class="flex gap-1">${cardsHtml}</div>
+      <div class="poker-seat-label">${isDealer ? 'D · ' : ''}${p.name}</div>
+      <div class="poker-seat-chips">$${p.chips.toLocaleString('en-US')}</div>
+      <div class="poker-seat-bet">${p.bet ? 'Bet: $'+p.bet : ''}</div>
+    `;
+    opponentsRow.appendChild(seat);
+  });
+
+  // Action buttons
+  const isMyTurn = room.state === 'playing' && room.actionIdx !== -1 &&
+    room.players[room.actionIdx]?.id === pokerState.myId;
+  const me2 = room.players.find(p => p.id === pokerState.myId);
+  const canCheck = isMyTurn && me2 && me2.bet >= room.currentBet;
+  const callAmt = me2 ? Math.min(room.currentBet - me2.bet, me2.chips) : 0;
+
+  document.getElementById('pk-fold').disabled  = !isMyTurn;
+  document.getElementById('pk-check').disabled = !isMyTurn || !canCheck;
+  document.getElementById('pk-call').disabled  = !isMyTurn || canCheck;
+  document.getElementById('pk-raise').disabled = !isMyTurn;
+  if (!canCheck && isMyTurn) {
+    document.getElementById('pk-call').textContent = `Call $${callAmt}`;
+  } else {
+    document.getElementById('pk-call').textContent = 'Call';
+  }
+  if (isMyTurn) {
+    document.getElementById('pk-raise-amt').value = Math.max(room.currentBet * 2, 40);
+    pokerSetStatus('Twoja kolej!');
+  } else if (room.state === 'waiting') {
+    pokerSetStatus('Czekamy na graczy… (min. 2)');
+  } else {
+    const acting = room.players[room.actionIdx];
+    pokerSetStatus(acting ? `Kolej: ${acting.name}` : '');
+  }
+}
+
+function pokerRenderCommunity(cards) {
+  const el = document.getElementById('poker-community');
+  if (!cards || cards.length === 0) {
+    el.innerHTML = '<div class="font-label text-[10px] text-gray-600 uppercase tracking-widest">Karty wspólne pojawią się tutaj</div>';
+    return;
+  }
+  el.innerHTML = '';
+  cards.forEach(card => el.appendChild(pokerCardEl(card, true)));
+}
+
+function pokerRenderMyCards() {
+  const el = document.getElementById('poker-my-cards');
+  if (!pokerState.myCards || pokerState.myCards.length === 0) {
+    el.innerHTML = '<div class="font-label text-[10px] text-gray-600 uppercase tracking-widest">Twoje karty</div>';
+    return;
+  }
+  el.innerHTML = '';
+  pokerState.myCards.forEach(card => el.appendChild(pokerCardEl(card, false)));
+}
+
+function pokerCardEl(card, community) {
+  const el = document.createElement('div');
+  const isRed = card.suit === '♥' || card.suit === '♦';
+  el.className = 'poker-card' + (community ? ' community' : '') + (isRed ? ' red' : '');
+  el.innerHTML = `<span>${card.rank}</span><span class="ps">${card.suit}</span>`;
+  return el;
+}
+
+function pokerRenderShowdown(data) {
+  // Reveal all cards
+  const opponentsRow = document.getElementById('poker-opponents-row');
+  const seats = opponentsRow.querySelectorAll('.poker-seat');
+  const room = pokerState.room;
+  if (room) {
+    data.players.forEach(p => {
+      const playerIdx = room.players.findIndex(rp => rp.id === p.id);
+      if (playerIdx === -1) return;
+      // Find seat
+      const nonMePlayers = room.players.filter(rp => rp.id !== pokerState.myId);
+      const seatIdx = nonMePlayers.findIndex(rp => rp.id === p.id);
+      if (seatIdx >= 0 && seats[seatIdx]) {
+        const cardsDiv = seats[seatIdx].querySelector('.flex.gap-1');
+        if (cardsDiv) {
+          cardsDiv.innerHTML = '';
+          p.cards.forEach(c => {
+            const ce = document.createElement('div');
+            const red = c.suit==='♥'||c.suit==='♦';
+            ce.className = 'poker-card' + (red?' red':'');
+            ce.style.cssText = 'width:40px;height:58px;font-size:10px;padding:3px 4px;';
+            ce.innerHTML = `<span>${c.rank}</span><span class="ps" style="font-size:12px;">${c.suit}</span>`;
+            cardsDiv.appendChild(ce);
+          });
+        }
+      }
+    });
+  }
+
+  const winNames = data.winners.map(w => `${w.name} (${w.hand})`).join(', ');
+  pokerSetStatus(`Showdown! Wygrywa: ${winNames}`);
+  showToast('🏆 ' + winNames);
+}
+
+function pokerAction(action) {
+  if (!pokerSocket) return;
+  const amount = action === 'raise' ? parseInt(document.getElementById('pk-raise-amt').value) : undefined;
+  pokerSocket.emit('action', { action, amount });
+}
+
+function pokerSetStatus(msg) {
+  const el = document.getElementById('poker-status');
+  if (el) el.textContent = msg;
+}
+
+function pokerLeave() {
+  if (pokerSocket) { pokerSocket.disconnect(); pokerSocket = null; }
+  pokerState = { nick: '', roomId: null, myId: null, room: null, myCards: [], showdown: null };
+  document.getElementById('poker-lobby').classList.remove('hidden');
+  document.getElementById('poker-table-wrap').classList.add('hidden');
+  document.getElementById('poker-name-form').classList.remove('hidden');
+  document.getElementById('poker-rooms-grid').classList.add('hidden');
+  document.getElementById('poker-nick-input').value = '';
+  const badge = document.getElementById('poker-player-badge');
+  badge.classList.add('hidden');
+  badge.classList.remove('flex');
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
