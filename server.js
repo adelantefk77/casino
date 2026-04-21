@@ -355,10 +355,27 @@ function endHand(roomId) {
   }, 5000);
 }
 
+// ─── Global chat ──────────────────────────────────────────────────────────────
+const chatHistory = [];
+function chatPush(msg) {
+  chatHistory.push(msg);
+  if (chatHistory.length > 80) chatHistory.shift();
+}
+
 // ─── Socket.io ─────────────────────────────────────────────────────────────────
 io.on('connection', socket => {
   let playerRoomId = null;
   let playerName = null;
+
+  // Send chat history on connect
+  socket.emit('chat:history', chatHistory);
+
+  socket.on('chat:message', ({ nick, text }) => {
+    if (!nick || !text || text.trim().length === 0 || text.length > 300) return;
+    const msg = { nick: nick.slice(0, 20), text: text.trim(), ts: Date.now() };
+    chatPush(msg);
+    io.emit('chat:message', msg);
+  });
 
   socket.on('rooms:list', () => {
     socket.emit('rooms:list', Object.values(rooms).map(r => ({

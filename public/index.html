@@ -206,22 +206,52 @@ tailwind.config = {
   from { transform: translateY(-24px) scale(0.82); opacity: 0; }
   to   { transform: translateY(0) scale(1); opacity: 1; }
 }
+/* ─── Chat ─────────────────────────────────────────────────────────────────── */
+.chat-bubble { word-break: break-word; }
+.chat-bubble .nick { font-family: 'Space Grotesk', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; }
+.chat-bubble .msg  { font-family: 'Manrope', sans-serif; font-size: 12px; line-height: 1.4; }
+#chat-panel { transition: transform 0.3s ease; }
+/* ─── Login Modal ──────────────────────────────────────────────────────────── */
+#login-modal { backdrop-filter: blur(12px); }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body selection:bg-primary/30 selection:text-primary overflow-x-hidden">
 
 <!-- Header -->
-<header class="flex justify-between items-center px-6 py-4 w-full fixed top-0 bg-gradient-to-b from-[#131313] via-[#131313]/95 to-transparent z-50 shadow-2xl shadow-red-900/10">
-  <div class="text-2xl font-black text-primary tracking-tighter font-headline uppercase">Jankowo CASINO</div>
+<audio id="casino-audio" src="/niebieska_i_modra2.mp3" loop></audio>
+
+<header class="flex justify-between items-center px-4 md:px-6 py-3 w-full fixed top-0 bg-gradient-to-b from-[#131313] via-[#131313]/95 to-transparent z-50 shadow-2xl shadow-red-900/10">
+  <div class="text-xl md:text-2xl font-black text-primary tracking-tighter font-headline uppercase">Jankowo CASINO</div>
   <nav class="hidden md:flex items-center gap-8">
     <a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-secondary transition-colors duration-300" href="#">Lobby</a>
     <a class="text-primary font-bold border-b-2 border-primary font-label uppercase tracking-widest text-xs" href="#">Games</a>
     <a class="text-gray-400 font-medium font-label uppercase tracking-widest text-xs hover:text-secondary transition-colors duration-300" href="#">VIP Lounge</a>
   </nav>
-  <div class="flex items-center gap-4">
+  <div class="flex items-center gap-2 md:gap-3">
+    <!-- Audio player (always visible) -->
+    <div class="flex items-center gap-1 bg-surface-container-low rounded px-2 py-1 border border-white/5">
+      <span class="material-symbols-outlined text-gray-500 text-sm hidden sm:inline">music_note</span>
+      <button onclick="musicPlay()" id="music-play" title="Play/Pause"
+        class="flex items-center justify-center w-7 h-7 text-primary hover:text-primary/70 transition-colors">
+        <span class="material-symbols-outlined text-base">play_arrow</span>
+      </button>
+      <button onclick="musicStop()" title="Stop"
+        class="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-primary transition-colors">
+        <span class="material-symbols-outlined text-base">stop</span>
+      </button>
+      <button onclick="musicReset()" title="Reset"
+        class="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-primary transition-colors">
+        <span class="material-symbols-outlined text-base">replay</span>
+      </button>
+    </div>
+    <!-- Chat toggle (mobile) -->
+    <button onclick="toggleChat()" class="md:hidden flex items-center justify-center w-8 h-8 text-gray-400 hover:text-primary transition-colors relative">
+      <span class="material-symbols-outlined text-xl">chat</span>
+      <span id="chat-dot" class="hidden absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
+    </button>
     <button class="material-symbols-outlined text-primary hover:text-secondary transition-colors">account_balance_wallet</button>
-    <button class="material-symbols-outlined text-primary hover:text-secondary transition-colors">notifications</button>
-    <button class="material-symbols-outlined text-primary hover:text-secondary transition-colors">account_circle</button>
+    <button class="material-symbols-outlined text-primary hover:text-secondary transition-colors hidden md:inline">notifications</button>
+    <button onclick="showLoginInfo()" class="material-symbols-outlined text-primary hover:text-secondary transition-colors">account_circle</button>
   </div>
 </header>
 
@@ -262,26 +292,6 @@ tailwind.config = {
     </a>
   </nav>
   <div class="px-6 mt-auto space-y-4">
-    <!-- Music player -->
-    <div class="bg-surface-container rounded-lg p-3 border border-white/5">
-      <p class="font-label text-[9px] uppercase tracking-widest text-gray-500 mb-2">Now Playing</p>
-      <p class="font-label text-[10px] text-on-surface truncate mb-3">Niebieska i Modra</p>
-      <audio id="casino-audio" src="/niebieska_i_modra2.mp3" loop></audio>
-      <div class="flex items-center justify-between gap-2">
-        <button onclick="musicPlay()" id="music-play" title="Play"
-          class="flex-1 flex items-center justify-center py-2 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 transition-all">
-          <span class="material-symbols-outlined text-base">play_arrow</span>
-        </button>
-        <button onclick="musicStop()" id="music-stop" title="Stop"
-          class="flex-1 flex items-center justify-center py-2 bg-white/5 border border-white/10 text-gray-400 hover:text-primary hover:border-primary/30 transition-all">
-          <span class="material-symbols-outlined text-base">stop</span>
-        </button>
-        <button onclick="musicReset()" title="Reset"
-          class="flex-1 flex items-center justify-center py-2 bg-white/5 border border-white/10 text-gray-400 hover:text-primary hover:border-primary/30 transition-all">
-          <span class="material-symbols-outlined text-base">replay</span>
-        </button>
-      </div>
-    </div>
     <button class="w-full py-4 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.2em] shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all">DEPOSIT GOLD</button>
     <div class="flex justify-between pt-4 border-t border-white/5">
       <button class="material-symbols-outlined text-gray-500 hover:text-primary transition-colors">settings</button>
@@ -291,7 +301,7 @@ tailwind.config = {
 </aside>
 
 <!-- Main -->
-<main class="md:ml-64 pt-24 pb-32 px-4 md:px-10 min-h-screen">
+<main class="md:ml-64 md:mr-72 pt-24 pb-32 px-4 md:px-10 min-h-screen">
 
 <!-- ══════════ ROULETTE SECTION ══════════ -->
 <div id="roulette-section">
@@ -857,6 +867,54 @@ tailwind.config = {
 
 </main>
 
+<!-- ══════════ CHAT PANEL (desktop right sidebar) ══════════ -->
+<aside id="chat-panel" class="hidden md:flex flex-col fixed right-0 top-0 h-screen w-72 bg-[#131313] border-l border-white/5 z-40 shadow-[-10px_0_30px_rgba(0,0,0,0.4)]">
+  <div class="px-4 py-5 border-b border-white/5 mt-16 flex items-center justify-between">
+    <div>
+      <h3 class="font-headline text-primary text-sm font-black tracking-tight">Casino Chat</h3>
+      <p id="chat-online" class="font-label text-[9px] text-gray-500 uppercase tracking-widest">Połączono</p>
+    </div>
+    <span class="material-symbols-outlined text-gray-600 text-lg">chat</span>
+  </div>
+  <!-- Messages -->
+  <div id="chat-messages" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 flex flex-col"></div>
+  <!-- Input -->
+  <div class="px-3 py-3 border-t border-white/5">
+    <div class="flex gap-2">
+      <input id="chat-input" type="text" maxlength="300" placeholder="Napisz coś..."
+        class="flex-1 bg-surface-container border border-white/10 text-on-surface font-body text-xs px-3 py-2 rounded focus:outline-none focus:border-primary/50 placeholder-gray-600"
+        onkeydown="if(event.key==='Enter')chatSend()">
+      <button onclick="chatSend()"
+        class="px-3 py-2 bg-primary text-on-primary font-label font-bold text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-base" style="vertical-align:middle">send</span>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<!-- ══════════ CHAT DRAWER (mobile) ══════════ -->
+<div id="chat-drawer" class="md:hidden fixed inset-0 z-[150] pointer-events-none">
+  <div id="chat-drawer-bg" onclick="toggleChat()" class="absolute inset-0 bg-black/60 opacity-0 transition-opacity duration-300"></div>
+  <div id="chat-drawer-panel" class="absolute bottom-0 left-0 right-0 h-[60vh] bg-[#131313] border-t border-white/10 flex flex-col translate-y-full transition-transform duration-300">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
+      <h3 class="font-headline text-primary text-sm font-black">Casino Chat</h3>
+      <button onclick="toggleChat()" class="material-symbols-outlined text-gray-400 text-xl">close</button>
+    </div>
+    <div id="chat-messages-mob" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 flex flex-col"></div>
+    <div class="px-3 py-3 border-t border-white/5">
+      <div class="flex gap-2">
+        <input id="chat-input-mob" type="text" maxlength="300" placeholder="Napisz coś..."
+          class="flex-1 bg-surface-container border border-white/10 text-on-surface font-body text-xs px-3 py-2 rounded focus:outline-none focus:border-primary/50 placeholder-gray-600"
+          onkeydown="if(event.key==='Enter')chatSend()">
+        <button onclick="chatSend()"
+          class="px-3 py-2 bg-primary text-on-primary font-label font-bold text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all">
+          <span class="material-symbols-outlined text-base" style="vertical-align:middle">send</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bottom nav (mobile) -->
 <nav class="fixed bottom-0 left-0 w-full md:hidden bg-[#131313]/95 backdrop-blur-xl border-t border-white/5 z-50">
   <!-- Game tabs -->
@@ -894,6 +952,27 @@ tailwind.config = {
     <button class="material-symbols-outlined text-gray-500 hover:text-primary transition-colors">account_circle</button>
   </div>
 </nav>
+
+<!-- ══════════ LOGIN MODAL ══════════ -->
+<div id="login-modal" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80">
+  <div class="bg-surface-container-low border border-white/10 rounded-xl p-8 w-full max-w-sm mx-4 shadow-2xl text-center">
+    <div class="text-4xl font-black text-primary font-headline tracking-tighter mb-1">Jankowo CASINO</div>
+    <p class="font-label text-[10px] text-gray-500 uppercase tracking-widest mb-8">VIP Members Only</p>
+    <div class="space-y-4">
+      <div>
+        <input id="login-nick" type="text" maxlength="16" placeholder="Twój nick..."
+          class="w-full bg-surface-container border border-white/10 text-on-surface font-label text-sm px-4 py-3 rounded focus:outline-none focus:border-primary/60 placeholder-gray-600 text-center tracking-widest"
+          onkeydown="if(event.key==='Enter')loginSubmit()">
+        <p id="login-error" class="font-label text-[10px] text-secondary mt-2 hidden"></p>
+      </div>
+      <button onclick="loginSubmit()"
+        class="w-full py-3 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.3em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-primary/20">
+        WEJDŹ DO KASYNA
+      </button>
+    </div>
+    <p class="font-label text-[9px] text-gray-600 mt-6 uppercase tracking-widest">Nick zapisywany lokalnie w przeglądarce</p>
+  </div>
+</div>
 
 <!-- Result Overlay (Roulette) -->
 <div id="result-overlay" class="fixed inset-0 z-[100] pointer-events-none" style="display:none">
@@ -2005,6 +2084,118 @@ function pokerLeave() {
   badge.classList.remove('flex');
 }
 
+// ─── Login ────────────────────────────────────────────────────────────────────
+let globalNick = '';
+
+function loginInit() {
+  const saved = localStorage.getItem('casino_nick');
+  if (saved && saved.trim().length >= 2) {
+    globalNick = saved.trim();
+    document.getElementById('login-modal').style.display = 'none';
+    chatInit();
+  }
+  // Pre-fill poker nick if already set
+  const pokerInput = document.getElementById('poker-nick-input');
+  if (pokerInput && globalNick) pokerInput.value = globalNick;
+}
+
+function loginSubmit() {
+  const val = document.getElementById('login-nick').value.trim();
+  if (val.length < 2) {
+    const err = document.getElementById('login-error');
+    err.textContent = 'Nick musi mieć min. 2 znaki'; err.classList.remove('hidden');
+    return;
+  }
+  globalNick = val;
+  localStorage.setItem('casino_nick', val);
+  document.getElementById('login-modal').style.display = 'none';
+  // Pre-fill poker nick
+  const pokerInput = document.getElementById('poker-nick-input');
+  if (pokerInput) pokerInput.value = val;
+  chatInit();
+}
+
+function showLoginInfo() {
+  if (globalNick) showToast('Nick: ' + globalNick);
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+let chatSocket = null;
+let chatOpen = false;
+
+function chatInit() {
+  if (chatSocket) return;
+  chatSocket = io();
+  chatSocket.on('chat:history', (msgs) => {
+    msgs.forEach(m => chatAppend(m, false));
+    chatScrollBottom();
+  });
+  chatSocket.on('chat:message', (msg) => {
+    chatAppend(msg, true);
+    if (!chatOpen) document.getElementById('chat-dot').classList.remove('hidden');
+  });
+}
+
+function chatAppend(msg, scroll) {
+  const isMe = msg.nick === globalNick;
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble flex flex-col ' + (isMe ? 'items-end' : 'items-start');
+  const time = new Date(msg.ts).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  bubble.innerHTML = `
+    <span class="nick mb-0.5 ${isMe ? 'text-primary' : 'text-secondary'}">${escHtml(msg.nick)} <span class="text-gray-600 font-normal">${time}</span></span>
+    <div class="msg px-3 py-1.5 rounded max-w-[85%] ${isMe ? 'bg-primary/15 border border-primary/20 text-on-surface' : 'bg-surface-container-high border border-white/5 text-on-surface'}">${escHtml(msg.text)}</div>
+  `;
+  // Append to both desktop and mobile
+  ['chat-messages','chat-messages-mob'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const clone = bubble.cloneNode(true);
+    el.appendChild(clone);
+    if (el.children.length > 100) el.firstChild.remove();
+  });
+  if (scroll) chatScrollBottom();
+}
+
+function chatScrollBottom() {
+  ['chat-messages','chat-messages-mob'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.scrollTop = el.scrollHeight;
+  });
+}
+
+function chatSend() {
+  if (!chatSocket || !globalNick) return;
+  const desktopInput = document.getElementById('chat-input');
+  const mobInput = document.getElementById('chat-input-mob');
+  const text = (desktopInput?.value || mobInput?.value || '').trim();
+  if (!text) return;
+  chatSocket.emit('chat:message', { nick: globalNick, text });
+  if (desktopInput) desktopInput.value = '';
+  if (mobInput) mobInput.value = '';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  const bg = document.getElementById('chat-drawer-bg');
+  const panel = document.getElementById('chat-drawer-panel');
+  const drawer = document.getElementById('chat-drawer');
+  if (chatOpen) {
+    drawer.classList.remove('pointer-events-none');
+    bg.classList.remove('opacity-0'); bg.classList.add('opacity-100');
+    panel.classList.remove('translate-y-full');
+    document.getElementById('chat-dot').classList.add('hidden');
+    chatScrollBottom();
+  } else {
+    drawer.classList.add('pointer-events-none');
+    bg.classList.add('opacity-0'); bg.classList.remove('opacity-100');
+    panel.classList.add('translate-y-full');
+  }
+}
+
 // ─── Music Player ─────────────────────────────────────────────────────────────
 function musicPlay() {
   const audio = document.getElementById('casino-audio');
@@ -2029,12 +2220,12 @@ function musicReset() {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  loginInit();
   const audio = document.getElementById('casino-audio');
   const btn = document.getElementById('music-play');
   audio.play().then(() => {
     btn.innerHTML = '<span class="material-symbols-outlined text-base">pause</span>';
   }).catch(() => {
-    // Autoplay blocked — wait for first user interaction
     const unlock = () => {
       audio.play().then(() => {
         btn.innerHTML = '<span class="material-symbols-outlined text-base">pause</span>';
