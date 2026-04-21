@@ -265,8 +265,8 @@ tailwind.config = {
     <!-- Music player -->
     <div class="bg-surface-container rounded-lg p-3 border border-white/5">
       <p class="font-label text-[9px] uppercase tracking-widest text-gray-500 mb-2">Now Playing</p>
-      <p class="font-label text-[10px] text-on-surface truncate mb-3">Zegar na gołej ścianie</p>
-      <audio id="casino-audio" src="/music.mp3" loop></audio>
+      <p class="font-label text-[10px] text-on-surface truncate mb-3">Niebieska i Modra</p>
+      <audio id="casino-audio" src="/niebieska_i_modra2.mp3" loop></audio>
       <div class="flex items-center justify-between gap-2">
         <button onclick="musicPlay()" id="music-play" title="Play"
           class="flex-1 flex items-center justify-center py-2 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 transition-all">
@@ -2028,6 +2028,22 @@ function musicReset() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const audio = document.getElementById('casino-audio');
+  const btn = document.getElementById('music-play');
+  audio.play().then(() => {
+    btn.innerHTML = '<span class="material-symbols-outlined text-base">pause</span>';
+  }).catch(() => {
+    // Autoplay blocked — wait for first user interaction
+    const unlock = () => {
+      audio.play().then(() => {
+        btn.innerHTML = '<span class="material-symbols-outlined text-base">pause</span>';
+      });
+      document.removeEventListener('click', unlock);
+    };
+    document.addEventListener('click', unlock);
+  });
+});
 buildWheel();
 buildTable();
 buildSlotMachine();
