@@ -794,20 +794,8 @@ tailwind.config = {
 
     <!-- Login / Room lobby -->
     <div id="poker-lobby">
-      <!-- Name form -->
-      <div id="poker-name-form" class="mb-8 bg-surface-container-low p-6 rounded-lg border border-white/5 max-w-sm">
-        <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-secondary mb-4">Nick gracza</h3>
-        <div class="flex gap-2">
-          <input id="poker-nick-input" type="text" maxlength="16" placeholder="Twój nick..."
-            class="flex-1 bg-surface-container border border-white/10 text-on-surface font-label text-sm px-4 py-2.5 rounded focus:outline-none focus:border-primary/60 placeholder-gray-600"
-            onkeydown="if(event.key==='Enter')pokerSetNick()">
-          <button onclick="pokerSetNick()" class="px-5 py-2.5 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all">OK</button>
-        </div>
-        <p id="poker-nick-error" class="font-label text-[10px] text-secondary mt-2 hidden"></p>
-      </div>
-
       <!-- Rooms -->
-      <div id="poker-rooms-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4 hidden">
+      <div id="poker-rooms-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <!-- filled by JS -->
       </div>
     </div>
@@ -1815,8 +1803,9 @@ let pokerState = {
 };
 
 function pokerOnEnter() {
+  pokerState.nick = globalNick;
   if (!pokerSocket) pokerInitSocket();
-  pokerRefreshLobby();
+  else pokerRefreshLobby();
 }
 
 function pokerInitSocket() {
@@ -1865,23 +1854,10 @@ function pokerRefreshLobby() {
 }
 
 function pokerSetNick() {
-  const input = document.getElementById('poker-nick-input');
-  const nick = input.value.trim();
-  if (nick.length < 2) {
-    pokerShowError('Nick musi mieć min. 2 znaki'); return;
-  }
-  pokerState.nick = nick;
-  document.getElementById('poker-name-form').classList.add('hidden');
-  document.getElementById('poker-rooms-grid').classList.remove('hidden');
-  document.getElementById('poker-nick-display').textContent = nick;
-  if (pokerSocket) pokerSocket.emit('rooms:list');
+  // Nick comes from global login — no-op
 }
 
 function pokerShowError(msg) {
-  const el = document.getElementById('poker-nick-error');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 3000);
   showToast(msg);
 }
 
@@ -2076,9 +2052,6 @@ function pokerLeave() {
   pokerState = { nick: '', roomId: null, myId: null, room: null, myCards: [], showdown: null };
   document.getElementById('poker-lobby').classList.remove('hidden');
   document.getElementById('poker-table-wrap').classList.add('hidden');
-  document.getElementById('poker-name-form').classList.remove('hidden');
-  document.getElementById('poker-rooms-grid').classList.add('hidden');
-  document.getElementById('poker-nick-input').value = '';
   const badge = document.getElementById('poker-player-badge');
   badge.classList.add('hidden');
   badge.classList.remove('flex');
@@ -2094,9 +2067,6 @@ function loginInit() {
     document.getElementById('login-modal').style.display = 'none';
     chatInit();
   }
-  // Pre-fill poker nick if already set
-  const pokerInput = document.getElementById('poker-nick-input');
-  if (pokerInput && globalNick) pokerInput.value = globalNick;
 }
 
 function loginSubmit() {
@@ -2109,9 +2079,6 @@ function loginSubmit() {
   globalNick = val;
   localStorage.setItem('casino_nick', val);
   document.getElementById('login-modal').style.display = 'none';
-  // Pre-fill poker nick
-  const pokerInput = document.getElementById('poker-nick-input');
-  if (pokerInput) pokerInput.value = val;
   chatInit();
 }
 
