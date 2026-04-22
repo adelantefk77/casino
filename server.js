@@ -16,19 +16,25 @@ const SUITS = ['♠','♥','♦','♣'];
 const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 const RANK_VAL = Object.fromEntries(RANKS.map((r,i) => [r, i+2]));
 const NUM_ROOMS = 3;
+const NUM_BOT_ROOMS = 3;            // rooms 4,5,6
 const MAX_PLAYERS = 5;
+const MAX_HUMANS_BOT_ROOM = 1;
+const BOTS_PER_TABLE = 3;
 const STARTING_CHIPS = 1000;
 const BASE_SMALL_BLIND = 10;
 const BASE_BIG_BLIND = 20;
-const ACTION_TIMEOUT = 60000;       // 60s — long enough for tabbed-out browser
-const BLIND_UP_INTERVAL = 5 * 60 * 1000; // 5 min
-const START_COUNTDOWN = 10;         // seconds to wait for players
+const ACTION_TIMEOUT = 60000;
+const BLIND_UP_INTERVAL = 5 * 60 * 1000;
+const START_COUNTDOWN = 10;
+const BOT_START_COUNTDOWN = 3;      // bot rooms start faster
+const BOT_NAMES = ['Kazik 🤖','Bartek 🤖','Franek 🤖','Piotrek 🤖'];
 
 // ─── State ─────────────────────────────────────────────────────────────────────
 const rooms = {};
-for (let i = 1; i <= NUM_ROOMS; i++) {
-  rooms[i] = {
-    id: i, name: `Stół ${i}`, players: [],
+function makeRoom(i, isBot) {
+  return {
+    id: i, name: isBot ? `Stół ${i} 🤖` : `Stół ${i}`,
+    isBot: !!isBot, players: [],
     state: 'waiting', deck: [], community: [],
     pot: 0, currentBet: 0, lastRaiseSize: BASE_BIG_BLIND,
     smallBlind: BASE_SMALL_BLIND, bigBlind: BASE_BIG_BLIND,
@@ -42,6 +48,104 @@ for (let i = 1; i <= NUM_ROOMS; i++) {
     startTimer: null,
     startCountdown: 0,
   };
+}
+for (let i = 1; i <= NUM_ROOMS; i++) rooms[i] = makeRoom(i, false);
+for (let i = NUM_ROOMS + 1; i <= NUM_ROOMS + NUM_BOT_ROOMS; i++) {
+  rooms[i] = makeRoom(i, true);
+  seedBots(i);
+}
+
+// ─── Bot helpers ──────────────────────────────────────────────────────────────
+function makeBot(roomId, idx) {
+  return {
+    id: `bot-${roomId}-${idx}-${Date.now()}`,
+    name: BOT_NAMES[idx % BOT_NAMES.length],
+    chips: STARTING_CHIPS,
+    cards: [], bet: 0, contributed: 0,
+    folded: false, allIn: false, sitOut: false,
+    isBot: true,
+  };
+}
+
+function seedBots(roomId) {
+  const room = rooms[roomId];
+  room.players = [];
+  for (let i = 0; i < BOTS_PER_TABLE; i++) room.players.push(makeBot(roomId, i));
+}
+
+function refillBots(roomId) {
+  const room = rooms[roomId];
+  if (!room.isBot) return;
+  const bots = room.players.filter(p => p.isBot);
+  const needed = BOTS_PER_TABLE - bots.length;
+  for (let i = 0; i < needed; i++) room.players.push(makeBot(roomId, bots.length + i));
+}
+
+function humanCount(room) { return room.players.filter(p => !p.isBot).length; }
+
+// ─── Bot AI ────────────────────────────────────────────────────────────────────
+function evalPreflop(cards) {
+  const v = cards.map(c => RANK_VAL[c.rank]);
+  const suited = cards[0].suit === cards[1].suit;
+  const paired = v[0] === v[1];
+  const high = Math.max(...v);
+  const conn = Math.abs(v[0]-v[1]) <= 2;
+  if (paired && high >= 10) return 4;
+  if (paired) return 3;
+  if (high >= 13 && Math.min(...v) >= 10) return 3;
+  if (suited && conn && high >= 9) return 2;
+  if (high >= 12) return 2;
+  if (high >= 10) return 1;
+  return 0;
+}
+
+function botDecide(room, bot) {
+  const canCheck = bot.bet >= room.currentBet;
+  const callAmt = Math.min(room.currentBet - bot.bet, bot.chips);
+  const rand = Math.random();
+
+  let strength;
+  if (room.community.length >= 3) {
+    strength = bestHand(bot.cards, room.community)?.rank ?? 0;
+  } else {
+    strength = evalPreflop(bot.cards);
+  }
+
+  const minRaiseTo = Math.min(room.currentBet + room.lastRaiseSize, bot.chips + bot.bet);
+  const bluff = rand < 0.08; // 8% bluff
+
+  if (strength >= 5 || bluff) {
+    if (rand < 0.55) return { action: 'raise', amount: minRaiseTo };
+    return canCheck ? { action: 'check' } : { action: 'call' };
+  }
+  if (strength >= 3) {
+    if (rand < 0.25) return { action: 'raise', amount: minRaiseTo };
+    if (rand < 0.85 || canCheck) return canCheck ? { action: 'check' } : { action: 'call' };
+    return { action: 'fold' };
+  }
+  if (strength >= 1) {
+    if (canCheck) return { action: 'check' };
+    if (callAmt <= room.bigBlind * 4 && rand < 0.6) return { action: 'call' };
+    return { action: 'fold' };
+  }
+  // Weak
+  if (canCheck) return rand < 0.12 ? { action: 'raise', amount: minRaiseTo } : { action: 'check' };
+  if (rand < 0.15) return { action: 'call' };
+  return { action: 'fold' };
+}
+
+function scheduleBotActionIfNeeded(roomId) {
+  const room = rooms[roomId];
+  if (room.state !== 'playing') return;
+  const bot = room.players[room.actionIdx];
+  if (!bot || !bot.isBot) return;
+  const delay = 800 + Math.random() * 1800;
+  setTimeout(() => {
+    if (room.state !== 'playing') return;
+    if (room.players[room.actionIdx]?.id !== bot.id) return;
+    const d = botDecide(room, bot);
+    handleAction(roomId, bot.id, d.action, d.amount);
+  }, delay);
 }
 
 // ─── Deck helpers ──────────────────────────────────────────────────────────────
@@ -131,17 +235,18 @@ function broadcast(roomId) {
 
 function publicRoom(room) {
   return {
-    id: room.id, name: room.name, state: room.state,
+    id: room.id, name: room.name, state: room.state, isBot: room.isBot,
     pot: room.pot, community: room.community,
     currentBet: room.currentBet, round: room.round,
     dealerIdx: room.dealerIdx, actionIdx: room.actionIdx,
     smallBlind: room.smallBlind, bigBlind: room.bigBlind, blindLevel: room.blindLevel,
     lastRaiseSize: room.lastRaiseSize,
     startCountdown: room.startCountdown,
+    humanCount: humanCount(room),
     players: room.players.map(p => ({
       id: p.id, name: p.name, chips: p.chips,
       bet: p.bet, folded: p.folded, allIn: p.allIn,
-      cardCount: p.cards.length,
+      cardCount: p.cards.length, isBot: p.isBot,
     })),
   };
 }
@@ -149,7 +254,8 @@ function publicRoom(room) {
 function broadcastWithCards(roomId) {
   const room = rooms[roomId];
   broadcast(roomId);
-  room.players.forEach(p => io.to(p.id).emit('player:cards', p.cards));
+  room.players.forEach(p => { if (!p.isBot) io.to(p.id).emit('player:cards', p.cards); });
+  scheduleBotActionIfNeeded(roomId);
 }
 
 function scheduleTimeout(roomId) {
@@ -185,10 +291,10 @@ function stopBlindTimer(room) {
 }
 
 // ─── Start countdown ──────────────────────────────────────────────────────────
-function beginStartCountdown(roomId) {
+function beginStartCountdown(roomId, seconds) {
   const room = rooms[roomId];
-  if (room.startTimer) return; // already counting
-  room.startCountdown = START_COUNTDOWN;
+  if (room.startTimer) return;
+  room.startCountdown = seconds ?? START_COUNTDOWN;
   broadcast(roomId);
 
   room.startTimer = setInterval(() => {
@@ -413,10 +519,15 @@ function endHand(roomId) {
     community: room.community,
   });
 
-  room.players = room.players.filter(p => p.chips > 0);
+  // Remove busted non-bot players; busted bots get replaced
+  room.players = room.players.filter(p => p.isBot || p.chips > 0);
+  if (room.isBot) refillBots(roomId);
 
   setTimeout(() => {
-    if (room.players.length >= 2) {
+    const canStart = room.isBot
+      ? humanCount(room) >= 1 && room.players.length >= 2
+      : room.players.length >= 2;
+    if (canStart) {
       room.pot = 0;
       startGame(roomId);
     } else {
@@ -449,8 +560,10 @@ io.on('connection', socket => {
 
   socket.on('rooms:list', () => {
     socket.emit('rooms:list', Object.values(rooms).map(r => ({
-      id: r.id, name: r.name, state: r.state,
-      playerCount: r.players.length, maxPlayers: MAX_PLAYERS,
+      id: r.id, name: r.name, state: r.state, isBot: r.isBot,
+      playerCount: r.players.length,
+      humanCount: humanCount(r),
+      maxPlayers: r.isBot ? BOTS_PER_TABLE + MAX_HUMANS_BOT_ROOM : MAX_PLAYERS,
     })));
   });
 
@@ -458,8 +571,11 @@ io.on('connection', socket => {
     if (!name || name.trim().length < 2) return socket.emit('error', 'Podaj nickname (min 2 znaki)');
     const room = rooms[roomId];
     if (!room) return socket.emit('error', 'Pokój nie istnieje');
-    if (room.players.length >= MAX_PLAYERS) return socket.emit('error', 'Stolik pełny');
-    if (room.players.find(p => p.name === name.trim())) return socket.emit('error', 'Nick zajęty w tym pokoju');
+    const maxP = room.isBot ? BOTS_PER_TABLE + MAX_HUMANS_BOT_ROOM : MAX_PLAYERS;
+    if (room.players.length >= maxP) return socket.emit('error', 'Stolik pełny');
+    if (room.isBot && humanCount(room) >= MAX_HUMANS_BOT_ROOM)
+      return socket.emit('error', 'Stolik botów — tylko 1 gracz');
+    if (room.players.find(p => p.name === name.trim() && !p.isBot)) return socket.emit('error', 'Nick zajęty w tym pokoju');
 
     playerRoomId = roomId;
     playerName = name.trim();
@@ -476,9 +592,13 @@ io.on('connection', socket => {
     socket.emit('player:cards', []);
     broadcast(roomId);
 
-    // Start countdown when 2+ players join
-    if (room.players.length >= 2 && room.state === 'waiting') {
-      beginStartCountdown(roomId);
+    // Start countdown
+    if (room.state === 'waiting') {
+      if (room.isBot && humanCount(room) >= 1) {
+        beginStartCountdown(roomId, BOT_START_COUNTDOWN);
+      } else if (!room.isBot && room.players.length >= 2) {
+        beginStartCountdown(roomId, START_COUNTDOWN);
+      }
     }
   });
 
@@ -494,7 +614,18 @@ io.on('connection', socket => {
     const idx = room.players.findIndex(p => p.id === socket.id);
     if (idx === -1) return;
     room.players.splice(idx, 1);
-    if (room.players.length < 2) {
+    if (room.isBot) {
+      // Bot room: if no humans left, stop game
+      if (humanCount(room) === 0) {
+        clearActionTimer(room);
+        cancelStartCountdown(room);
+        stopBlindTimer(room);
+        room.state = 'waiting';
+        // Reset busted bots
+        room.players = room.players.filter(p => p.isBot);
+        refillBots(playerRoomId);
+      }
+    } else if (room.players.length < 2) {
       clearActionTimer(room);
       cancelStartCountdown(room);
       stopBlindTimer(room);

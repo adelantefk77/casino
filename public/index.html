@@ -812,7 +812,7 @@ tailwind.config = {
     <!-- Login / Room lobby -->
     <div id="poker-lobby">
       <!-- Rooms -->
-      <div id="poker-rooms-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div id="poker-rooms-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
         <!-- filled by JS -->
       </div>
     </div>
@@ -1909,25 +1909,55 @@ function pokerRenderRooms(rooms) {
   const grid = document.getElementById('poker-rooms-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  rooms.forEach(room => {
-    const full = room.playerCount >= room.maxPlayers;
-    const div = document.createElement('div');
-    div.className = 'bg-surface-container-low border border-white/5 rounded-lg p-5 flex flex-col gap-3 ' + (full ? 'opacity-50' : 'hover:border-primary/30 transition-colors cursor-pointer');
-    div.innerHTML = `
-      <div class="flex items-center justify-between">
-        <h4 class="font-headline text-primary text-lg font-black">${room.name}</h4>
-        <span class="font-label text-[10px] uppercase tracking-widest px-2 py-1 rounded ${room.state==='playing'?'bg-secondary/20 text-secondary':'bg-primary/10 text-primary'}">${room.state==='playing'?'W grze':'Oczekuje'}</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-gray-500 text-base">group</span>
-        <span class="font-label text-xs text-gray-400">${room.playerCount} / ${room.maxPlayers} graczy</span>
-      </div>
-      <div class="text-[10px] font-label text-gray-500 uppercase tracking-widest">Blind: 10 / 20 · Start: $1000</div>
-      ${full ? '<div class="font-label text-[10px] text-secondary uppercase tracking-widest">Stolik pełny</div>' :
-        `<button onclick="pokerJoinRoom(${room.id})" class="w-full py-2.5 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all mt-1">DOŁĄCZ</button>`}
-    `;
-    grid.appendChild(div);
-  });
+
+  // Separator headers
+  const humanRooms = rooms.filter(r => !r.isBot);
+  const botRooms   = rooms.filter(r => r.isBot);
+
+  const renderSection = (list, label) => {
+    if (!list.length) return;
+    const hdr = document.createElement('div');
+    hdr.className = 'col-span-full font-label text-[10px] uppercase tracking-[0.3em] text-gray-500 pt-2 pb-1 border-b border-white/5';
+    hdr.textContent = label;
+    grid.appendChild(hdr);
+
+    list.forEach(room => {
+      const isBotRoom = room.isBot;
+      const full = isBotRoom ? (room.humanCount >= 1) : (room.playerCount >= room.maxPlayers);
+      const div = document.createElement('div');
+      div.className = 'bg-surface-container-low border rounded-lg p-5 flex flex-col gap-3 transition-colors '
+        + (full ? 'opacity-60 border-white/5' : isBotRoom
+            ? 'border-secondary/20 hover:border-secondary/40 cursor-pointer'
+            : 'border-white/5 hover:border-primary/30 cursor-pointer');
+
+      const stateLabel = room.state === 'playing' ? 'W grze' : 'Oczekuje';
+      const stateColor = room.state === 'playing' ? 'bg-secondary/20 text-secondary' : 'bg-primary/10 text-primary';
+      const playerInfo = isBotRoom
+        ? `${room.humanCount}/1 gracz · ${room.playerCount - room.humanCount} botów`
+        : `${room.playerCount}/${room.maxPlayers} graczy`;
+
+      div.innerHTML = `
+        <div class="flex items-center justify-between">
+          <h4 class="font-headline text-lg font-black ${isBotRoom ? 'text-secondary' : 'text-primary'}">${room.name}</h4>
+          <span class="font-label text-[10px] uppercase tracking-widest px-2 py-1 rounded ${stateColor}">${stateLabel}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-gray-500 text-base">${isBotRoom ? 'smart_toy' : 'group'}</span>
+          <span class="font-label text-xs text-gray-400">${playerInfo}</span>
+        </div>
+        <div class="text-[10px] font-label text-gray-500 uppercase tracking-widest">
+          Blind: 10/20 · Start: $1000${isBotRoom ? ' · Solo vs Boty' : ''}
+        </div>
+        ${full
+          ? `<div class="font-label text-[10px] text-secondary uppercase tracking-widest">${isBotRoom ? 'Zajęty' : 'Pełny'}</div>`
+          : `<button onclick="pokerJoinRoom(${room.id})" class="w-full py-2.5 font-label font-bold text-xs tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all mt-1 ${isBotRoom ? 'bg-secondary text-on-secondary' : 'bg-primary text-on-primary'}">DOŁĄCZ</button>`}
+      `;
+      grid.appendChild(div);
+    });
+  };
+
+  renderSection(humanRooms, 'Stoły dla graczy');
+  renderSection(botRooms, 'Stoły z botami 🤖');
 }
 
 function pokerJoinRoom(roomId) {
@@ -1987,14 +2017,15 @@ function pokerRenderTable() {
       (isActive ? ' is-active' : '') +
       (isDealer ? ' is-dealer' : '') +
       (p.folded  ? ' is-folded' : '');
-    // Show face-down cards or just count
     let cardsHtml = '';
     for (let c = 0; c < p.cardCount; c++) {
       cardsHtml += `<div class="poker-card face-down" style="width:40px;height:58px;font-size:10px;"></div>`;
     }
+    const nameLabel = (isDealer ? 'D · ' : '') + p.name;
+    const botBadge = p.isBot ? '<span style="font-size:9px;opacity:0.6;margin-left:4px">🤖</span>' : '';
     seat.innerHTML = `
       <div class="flex gap-1">${cardsHtml}</div>
-      <div class="poker-seat-label">${isDealer ? 'D · ' : ''}${p.name}</div>
+      <div class="poker-seat-label">${nameLabel}${botBadge}</div>
       <div class="poker-seat-chips">$${p.chips.toLocaleString('en-US')}</div>
       <div class="poker-seat-bet">${p.bet ? 'Bet: $'+p.bet : ''}</div>
     `;
