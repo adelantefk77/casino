@@ -213,10 +213,12 @@ tailwind.config = {
 #balerina-overlay {
   position: fixed; inset: 0; z-index: 500;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.85); pointer-events: none;
+  background: rgba(0,0,0,0.75);
+  pointer-events: none !important;  /* never block clicks */
 }
 #balerina-overlay img {
   max-height: 80vh; max-width: 80vw; object-fit: contain;
+  pointer-events: none;
   animation: balerIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
 }
 @keyframes balerIn {
@@ -2218,6 +2220,7 @@ function pokerSetStatus(msg) {
 function showBalerina() {
   const el = document.getElementById('balerina-overlay');
   el.style.display = 'flex';
+  el.style.pointerEvents = 'none';
   setTimeout(() => { el.style.display = 'none'; }, 2000);
 }
 
