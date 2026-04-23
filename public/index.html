@@ -1848,23 +1848,43 @@ function pokerOnEnter() {
 }
 
 function pokerInitSocket() {
-  pokerSocket = io();
-  pokerState.myId = pokerSocket.id;
+  pokerSocket = io({ reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
 
   pokerSocket.on('connect', () => {
     pokerState.myId = pokerSocket.id;
+    // Try to rejoin previous room after reconnect
+    const savedRoom = localStorage.getItem('poker_room');
+    if (savedRoom && pokerState.roomId && globalNick) {
+      pokerSocket.emit('room:rejoin', { name: globalNick });
+    } else {
+      pokerSocket.emit('rooms:list');
+    }
+  });
+
+  pokerSocket.on('disconnect', () => {
+    pokerSetStatus('⚠️ Połączenie przerwane — łączenie...');
+  });
+
+  pokerSocket.on('rejoin:failed', (msg) => {
+    // Session expired — go back to lobby
+    pokerState.roomId = null;
+    localStorage.removeItem('poker_room');
+    document.getElementById('poker-lobby').classList.remove('hidden');
+    document.getElementById('poker-table-wrap').classList.add('hidden');
     pokerSocket.emit('rooms:list');
+    showToast('Sesja wygasła: ' + msg);
   });
 
   pokerSocket.on('rooms:list', (rooms) => {
     pokerRenderRooms(rooms);
   });
 
-  pokerSocket.on('room:joined', ({ roomId, name, chips }) => {
+  pokerSocket.on('room:joined', ({ roomId, name, chips, rejoin }) => {
     pokerState.roomId = roomId;
     pokerState.nick = name;
+    localStorage.setItem('poker_room', roomId);
     pokerShowTable();
-    pokerSetStatus('Czekamy na graczy...');
+    pokerSetStatus(rejoin ? 'Wróciłeś do gry!' : 'Czekamy na graczy...');
   });
 
   pokerSocket.on('room:update', (room) => {
@@ -2025,9 +2045,10 @@ function pokerRenderTable() {
     }
     const nameLabel = (isDealer ? 'D · ' : '') + p.name;
     const botBadge = p.isBot ? '<span style="font-size:9px;opacity:0.6;margin-left:4px">🤖</span>' : '';
+    const dcBadge  = p.disconnected ? '<span style="font-size:9px;color:#ffb4a8;margin-left:4px" title="Rozłączony">📶</span>' : '';
     seat.innerHTML = `
       <div class="flex gap-1">${cardsHtml}</div>
-      <div class="poker-seat-label">${nameLabel}${botBadge}</div>
+      <div class="poker-seat-label">${nameLabel}${botBadge}${dcBadge}</div>
       <div class="poker-seat-chips">$${p.chips.toLocaleString('en-US')}</div>
       <div class="poker-seat-bet">${p.bet ? 'Bet: $'+p.bet : ''}</div>
     `;
@@ -2272,6 +2293,7 @@ function showBalerina() {
 }
 
 function pokerLeave() {
+  localStorage.removeItem('poker_room');
   if (pokerSocket) { pokerSocket.disconnect(); pokerSocket = null; }
   pokerState = { nick: '', roomId: null, myId: null, room: null, myCards: [], showdown: null };
   document.getElementById('poker-lobby').classList.remove('hidden');
@@ -2412,6 +2434,13 @@ function musicReset() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loginInit();
+
+  // Re-connect when user comes back to the tab
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && pokerSocket && !pokerSocket.connected) {
+      pokerSocket.connect();
+    }
+  });
 });
 buildWheel();
 buildTable();

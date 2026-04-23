@@ -247,6 +247,7 @@ function publicRoom(room) {
       id: p.id, name: p.name, chips: p.chips,
       bet: p.bet, folded: p.folded, allIn: p.allIn,
       cardCount: p.cards.length, isBot: p.isBot,
+      disconnected: !!p.disconnected,
     })),
   };
 }
@@ -537,6 +538,69 @@ function endHand(roomId) {
   }, 5000);
 }
 
+// ─── Reconnect cache ──────────────────────────────────────────────────────────
+// nick → { roomId, removeTimer }
+const dcPlayers = {};
+
+function playerDisconnected(socket, playerRoomId, playerName) {
+  const room = rooms[playerRoomId];
+  if (!room) return;
+
+  const p = room.players.find(pl => pl.id === socket.id);
+  if (!p || p.isBot) return;
+
+  // Mark disconnected — keep in room
+  p.disconnected = true;
+  p.dcSocketId = socket.id; // remember old id for action matching
+
+  // If it was their turn, auto-fold them quickly so game continues
+  if (room.state === 'playing' && room.players[room.actionIdx]?.id === socket.id) {
+    clearActionTimer(room);
+    setTimeout(() => {
+      // Still disconnected and still their turn?
+      if (p.disconnected && room.players[room.actionIdx]?.id === socket.id) {
+        handleAction(playerRoomId, socket.id, 'fold');
+      }
+    }, 1500);
+  }
+
+  broadcast(playerRoomId);
+
+  // Schedule removal after 90s if they don't come back
+  if (dcPlayers[playerName]) clearTimeout(dcPlayers[playerName].removeTimer);
+  dcPlayers[playerName] = {
+    roomId: playerRoomId,
+    removeTimer: setTimeout(() => {
+      delete dcPlayers[playerName];
+      const r = rooms[playerRoomId];
+      if (!r) return;
+      r.players = r.players.filter(pl => pl.name !== playerName || !pl.disconnected);
+      checkRoomAfterLeave(playerRoomId);
+      broadcast(playerRoomId);
+    }, 90000),
+  };
+}
+
+function checkRoomAfterLeave(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+  const active = room.players.filter(p => !p.isBot && !p.disconnected);
+  if (room.isBot) {
+    if (active.length === 0) {
+      clearActionTimer(room); cancelStartCountdown(room); stopBlindTimer(room);
+      room.state = 'waiting';
+      room.players = room.players.filter(p => p.isBot);
+      refillBots(roomId);
+    }
+  } else {
+    const total = room.players.filter(p => !p.disconnected);
+    if (total.length < 2) {
+      clearActionTimer(room); cancelStartCountdown(room); stopBlindTimer(room);
+      room.state = 'waiting';
+    }
+  }
+}
+
 // ─── Global chat ──────────────────────────────────────────────────────────────
 const chatHistory = [];
 function chatPush(msg) {
@@ -602,36 +666,50 @@ io.on('connection', socket => {
     }
   });
 
+  socket.on('room:rejoin', ({ name }) => {
+    if (!name) return;
+    const entry = dcPlayers[name];
+    if (!entry) return socket.emit('rejoin:failed', 'Sesja wygasła — dołącz ponownie');
+
+    const room = rooms[entry.roomId];
+    if (!room) return socket.emit('rejoin:failed', 'Pokój nie istnieje');
+
+    const p = room.players.find(pl => pl.name === name && pl.disconnected);
+    if (!p) return socket.emit('rejoin:failed', 'Nie znaleziono gracza');
+
+    // Clear removal timer
+    clearTimeout(entry.removeTimer);
+    delete dcPlayers[name];
+
+    // Restore player's socket ID
+    const oldId = p.id;
+    p.id = socket.id;
+    p.disconnected = false;
+    p.dcSocketId = null;
+
+    // Update acted set if they were in it
+    if (room.acted.has(oldId)) { room.acted.delete(oldId); room.acted.add(socket.id); }
+
+    // Update actionIdx target if it was pointing to them
+    // (actionIdx is numeric index, still valid)
+
+    playerRoomId = entry.roomId;
+    playerName = name;
+
+    socket.join(`room:${entry.roomId}`);
+    socket.emit('room:joined', { roomId: entry.roomId, name, chips: p.chips, rejoin: true });
+    socket.emit('player:cards', p.cards);
+    broadcast(entry.roomId);
+  });
+
   socket.on('action', ({ action, amount }) => {
     if (!playerRoomId) return;
     handleAction(playerRoomId, socket.id, action, amount);
   });
 
   socket.on('disconnect', () => {
-    if (!playerRoomId) return;
-    const room = rooms[playerRoomId];
-    if (!room) return;
-    const idx = room.players.findIndex(p => p.id === socket.id);
-    if (idx === -1) return;
-    room.players.splice(idx, 1);
-    if (room.isBot) {
-      // Bot room: if no humans left, stop game
-      if (humanCount(room) === 0) {
-        clearActionTimer(room);
-        cancelStartCountdown(room);
-        stopBlindTimer(room);
-        room.state = 'waiting';
-        // Reset busted bots
-        room.players = room.players.filter(p => p.isBot);
-        refillBots(playerRoomId);
-      }
-    } else if (room.players.length < 2) {
-      clearActionTimer(room);
-      cancelStartCountdown(room);
-      stopBlindTimer(room);
-      room.state = 'waiting';
-    }
-    broadcast(playerRoomId);
+    if (!playerRoomId || !playerName) return;
+    playerDisconnected(socket, playerRoomId, playerName);
   });
 });
 
