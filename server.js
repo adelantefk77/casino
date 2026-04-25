@@ -845,8 +845,12 @@ function haxTick(rid) {
 
   if (goal) {
     r.score[goal]++;
-    r.gcool = 120;
+    r.gcool = 150; // 2.5s freeze (open-hax style)
+    // Immediately stop all velocities so nobody keeps moving during celebration
+    r.players.forEach(p => { p.vx = 0; p.vy = 0; p.keys = {}; });
+    r.ball.vx = 0; r.ball.vy = 0;
     io.to(`hax:${rid}`).emit('hax:goal', { scorer: goal, score: r.score });
+    // Respawn at center after 2s (like real HaxBall)
     setTimeout(() => {
       if (r.score[goal] >= HAX_GOAL_LIMIT) {
         haxStop(rid);
@@ -856,7 +860,8 @@ function haxTick(rid) {
         }, 4000);
       } else {
         if (r.isBot) haxSeedBots(rid);
-        haxSpawn(r);
+        haxSpawn(r); // respawn at center positions
+        io.to(`hax:${rid}`).emit('hax:respawn'); // tell clients to reset prediction
       }
     }, 2000);
   }

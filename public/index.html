@@ -2562,9 +2562,17 @@ let haxPickedRoom = null;
 let haxPickedTeam = null;
 let haxState  = null;
 let haxRoster = [];
-let haxKeys   = { up:false, down:false, left:false, right:false };
+let haxKeys   = { up:false, down:false, left:false, right:false, kick:false };
 let haxRAF    = null;
 let haxRunning = false;
+
+// ── Client-side prediction (same constants as server) ─────────────────────────
+// Eliminates input delay — player moves immediately on client
+const HAX_PA  = 0.55;   // accel px/frame
+const HAX_PMS = 4.5;    // max speed px/frame
+const HAX_PF  = 0.87;   // friction per frame
+let haxPred = null;      // { x, y, vx, vy, kickCd } — local player predicted pos
+let haxKeysSentAt = 0;   // throttle key sends
 
 function haxOnEnter() {
   if (!haxSocket) haxInitSocket();
@@ -2595,6 +2603,7 @@ function haxInitSocket() {
     haxState = haxState || {};
     haxState.score = score;
     haxState.time  = 180;
+    haxPred = null; // reset prediction — will init from next state
     document.getElementById('hax-status').textContent = 'W grze';
     document.getElementById('hax-waiting-overlay').style.display = 'none';
     haxUpdateHUD();
@@ -2602,22 +2611,32 @@ function haxInitSocket() {
 
   haxSocket.on('hax:state', s => {
     haxState = s;
+    // Init prediction from first state received
+    if (!haxPred && haxMyId) {
+      const me = s.players?.find(p => p.id === haxMyId);
+      if (me) haxPred = { x: me.x, y: me.y, vx: 0, vy: 0, kickCd: 0 };
+    }
     haxUpdateHUD();
   });
 
   haxSocket.on('hax:goal', ({ scorer, score }) => {
     haxState = haxState || {};
     haxState.score = score;
+    haxPred = null; // respawn coming — reset prediction
     haxUpdateHUD();
     const fl = document.getElementById('hax-goal-flash');
     const tx = document.getElementById('hax-goal-text');
     tx.textContent = scorer === 'gold' ? '⚽ ZŁOCI STRZELAJĄ!' : '⚽ RÓŻOWI STRZELAJĄ!';
     tx.style.color = TEAM_COLOR[scorer];
     fl.classList.remove('show');
-    void fl.offsetWidth; // reflow
+    void fl.offsetWidth;
     fl.classList.add('show');
     fl.style.opacity = '';
     setTimeout(() => { fl.classList.remove('show'); fl.style.opacity = '0'; }, 2200);
+  });
+
+  haxSocket.on('hax:respawn', () => {
+    haxPred = null; // reset prediction — will init from next hax:state
   });
 
   haxSocket.on('hax:gameover', ({ winner, score }) => {
@@ -2759,9 +2778,61 @@ function haxUpdateHUD() {
   document.getElementById('hax-time').textContent = `${m}:${sec.toString().padStart(2,'0')}`;
 }
 
+// ─── Client-side prediction — zero-delay local movement ──────────────────────
+function haxStepPrediction() {
+  if (!haxPred) return;
+
+  const k = haxKeys;
+  let ax = 0, ay = 0;
+  if (k.up)    ay -= HAX_PA;
+  if (k.down)  ay += HAX_PA;
+  if (k.left)  ax -= HAX_PA;
+  if (k.right) ax += HAX_PA;
+  if (ax && ay) { ax *= 0.707; ay *= 0.707; }
+
+  haxPred.vx = (haxPred.vx + ax) * HAX_PF;
+  haxPred.vy = (haxPred.vy + ay) * HAX_PF;
+  const spd = Math.hypot(haxPred.vx, haxPred.vy);
+  if (spd > HAX_PMS) { haxPred.vx *= HAX_PMS/spd; haxPred.vy *= HAX_PMS/spd; }
+
+  haxPred.x += haxPred.vx;
+  haxPred.y += haxPred.vy;
+
+  // Wall clamp (same as server)
+  if (haxPred.y < HAX_PR)        { haxPred.y = HAX_PR;        haxPred.vy = 0; }
+  if (haxPred.y > HAX_FH-HAX_PR) { haxPred.y = HAX_FH-HAX_PR; haxPred.vy = 0; }
+  if (haxPred.x < HAX_PR)        { haxPred.x = HAX_PR;        haxPred.vx = 0; }
+  if (haxPred.x > HAX_FW-HAX_PR) { haxPred.x = HAX_FW-HAX_PR; haxPred.vx = 0; }
+
+  // Kick cooldown
+  if (haxPred.kickCd > 0) haxPred.kickCd--;
+
+  // Server correction: if we drift too far, snap to server position
+  const serverMe = haxState?.players?.find(p => p.id === haxMyId);
+  if (serverMe) {
+    const drift = Math.hypot(haxPred.x - serverMe.x, haxPred.y - serverMe.y);
+    if (drift > 60) {
+      haxPred.x = serverMe.x;
+      haxPred.y = serverMe.y;
+      haxPred.vx = 0;
+      haxPred.vy = 0;
+    }
+  }
+}
+
+// Send keys to server — throttled to avoid flooding
+function haxSendKeys() {
+  const now = Date.now();
+  if (now - haxKeysSentAt < 16) return; // max 60/s
+  haxKeysSentAt = now;
+  if (haxSocket) haxSocket.emit('hax:keys', { ...haxKeys });
+}
+
 // ─── Canvas rendering ─────────────────────────────────────────────────────────
 function haxLoop() {
   if (!haxRunning) return;
+  haxStepPrediction();
+  haxSendKeys();
   haxDraw();
   haxRAF = requestAnimationFrame(haxLoop);
 }
@@ -2835,30 +2906,33 @@ function haxDraw() {
 
   // ── Players ───────────────────────────────────────────────────────────────
   ctx.textBaseline = 'bottom';
-  for (const p of (haxState.players || [])) {
+  const allPlayers = haxState.players || [];
+  for (const p of allPlayers) {
     const isMe = p.id === haxMyId;
+    // Use client-side prediction for local player (zero input delay)
+    const rx = (isMe && haxPred) ? haxPred.x : p.x;
+    const ry = (isMe && haxPred) ? haxPred.y : p.y;
+
     const col  = TEAM_COLOR[p.team]  || '#fff';
     const glow = TEAM_GLOW[p.team]   || 'rgba(255,255,255,0.3)';
 
-    // Glow for self
     if (isMe) { ctx.shadowColor = glow; ctx.shadowBlur = 20; }
 
-    const gr = ctx.createRadialGradient(p.x - 4, p.y - 4, 2, p.x, p.y, HAX_PR);
+    const gr = ctx.createRadialGradient(rx - 4, ry - 4, 2, rx, ry, HAX_PR);
     gr.addColorStop(0, '#fff');
     gr.addColorStop(0.4, col);
     gr.addColorStop(1, col + '88');
-    ctx.beginPath(); ctx.arc(p.x, p.y, HAX_PR, 0, Math.PI*2);
+    ctx.beginPath(); ctx.arc(rx, ry, HAX_PR, 0, Math.PI*2);
     ctx.fillStyle = gr; ctx.fill();
     ctx.strokeStyle = isMe ? '#fff' : col;
     ctx.lineWidth = isMe ? 2.5 : 1.5; ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Name tag
     ctx.fillStyle = '#fff';
     ctx.font = `bold 10px 'Space Grotesk',sans-serif`;
     ctx.textAlign = 'center';
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
-    ctx.fillText((p.name || '?').slice(0, 10), p.x, p.y - HAX_PR - 3);
+    ctx.fillText((p.name || '?').slice(0, 10), rx, ry - HAX_PR - 3);
     ctx.shadowBlur = 0;
   }
 
@@ -2882,18 +2956,24 @@ function haxOnKD(e) {
   const dir = HAX_KEYMAP[e.key];
   if (!dir) return;
   e.preventDefault();
-  if (haxKeys[dir]) return;
   haxKeys[dir] = true;
-  if (haxSocket) haxSocket.emit('hax:keys', {...haxKeys});
+  // Send immediately on press (don't wait for next frame)
+  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
 }
 function haxOnKU(e) {
   const dir = HAX_KEYMAP[e.key];
   if (!dir) return;
   haxKeys[dir] = false;
-  if (haxSocket) haxSocket.emit('hax:keys', {...haxKeys});
+  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
 }
-function haxKD(dir) { haxKeys[dir]=true; if(haxSocket) haxSocket.emit('hax:keys',{...haxKeys}); }
-function haxKU(dir) { haxKeys[dir]=false; if(haxSocket) haxSocket.emit('hax:keys',{...haxKeys}); }
+function haxKD(dir) {
+  haxKeys[dir] = true;
+  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
+}
+function haxKU(dir) {
+  haxKeys[dir] = false;
+  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
+}
 
 function haxSetupKeys() {
   document.addEventListener('keydown', haxOnKD);
