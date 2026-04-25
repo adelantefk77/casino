@@ -2636,13 +2636,15 @@ function haxInitSocket() {
     const rose = players.filter(p=>p.team==='rose');
     const rg = document.getElementById('hax-roster-gold');
     const rr = document.getElementById('hax-roster-rose');
-    if (rg) rg.innerHTML = gold.map(p=>`<div class="font-label text-[11px] ${p.id===haxMyId?'text-primary font-bold':'text-gray-400'}">${p.id===haxMyId?'▶ ':''}${escHtml(p.name)}</div>`).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
-    if (rr) rr.innerHTML = rose.map(p=>`<div class="font-label text-[11px] ${p.id===haxMyId?'text-secondary font-bold':'text-gray-400'}">${p.id===haxMyId?'▶ ':''}${escHtml(p.name)}</div>`).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
-    // Show start overlay if any team missing
+    const pRow = (p) => `<div class="font-label text-[11px] ${p.id===haxMyId?'text-primary font-bold':p.isBot?'text-gray-600':'text-gray-400'}">${p.id===haxMyId?'▶ ':p.isBot?'🤖 ':''}${escHtml(p.name)}</div>`;
+    if (rg) rg.innerHTML = gold.map(pRow).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
+    if (rr) rr.innerHTML = rose.map(pRow).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
+    // Show start overlay only if human teams are missing (bots count as rose)
     const overlay = document.getElementById('hax-waiting-overlay');
     if (overlay) {
-      const bothTeams = gold.length > 0 && rose.length > 0;
-      overlay.style.display = bothTeams ? 'none' : 'flex';
+      const hasHuman = [...gold, ...rose].some(p => !p.isBot);
+      const hasBothSides = (gold.length > 0) && (rose.length > 0);
+      overlay.style.display = (hasHuman && hasBothSides) ? 'none' : 'flex';
     }
   });
 }
@@ -2651,32 +2653,71 @@ function haxDrawLobby(rooms) {
   const grid = document.getElementById('hax-rooms-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  rooms.forEach(r => {
+
+  const human = rooms.filter(r => !r.isBot);
+  const bot   = rooms.filter(r => r.isBot);
+
+  const addHeader = (label) => {
+    const h = document.createElement('div');
+    h.className = 'col-span-full font-label text-[10px] uppercase tracking-[0.3em] text-gray-500 pt-2 pb-1 border-b border-white/5';
+    h.textContent = label;
+    grid.appendChild(h);
+  };
+
+  const addRoom = (r) => {
+    const isFull = r.isBot ? (r.gold >= 1) : false;
     const div = document.createElement('div');
-    div.className = 'bg-surface-container-low border border-white/5 rounded-lg p-5 flex flex-col gap-3 hover:border-primary/20 transition-colors';
+    div.className = `bg-surface-container-low rounded-lg p-5 flex flex-col gap-3 transition-colors border ${
+      r.isBot ? 'border-secondary/15 hover:border-secondary/30' : 'border-white/5 hover:border-primary/20'
+    }`;
+    const stateBadge = r.state==='playing'
+      ? 'bg-secondary/20 text-secondary' : 'bg-primary/10 text-primary';
+    const playersInfo = r.isBot
+      ? `<span class="font-label text-xs text-gray-400">👤 ${r.gold}/1 gracz · 🤖 ${r.bots} boty</span>`
+      : `<span class="font-label text-xs" style="color:${TEAM_COLOR.gold}">● Złoci ${r.gold}/3</span>
+         <span class="font-label text-xs" style="color:${TEAM_COLOR.rose}">● Różowi ${r.rose}/3</span>`;
+    const btn = isFull
+      ? `<div class="font-label text-[10px] text-secondary uppercase tracking-widest">Zajęta</div>`
+      : `<button onclick="haxSelectRoom(${r.id},${r.isBot})" class="w-full py-2.5 font-label font-bold text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all ${r.isBot?'bg-secondary text-on-secondary':'bg-primary text-on-primary'}">WEJDŹ</button>`;
     div.innerHTML = `
       <div class="flex items-center justify-between">
-        <h4 class="font-headline text-primary text-lg font-black">Arena ${r.id}</h4>
-        <span class="font-label text-[10px] uppercase px-2 py-1 rounded ${r.state==='playing'?'bg-secondary/20 text-secondary':'bg-primary/10 text-primary'}">${r.state==='playing'?'W grze':'Oczekuje'}</span>
+        <h4 class="font-headline text-lg font-black ${r.isBot?'text-secondary':'text-primary'}">
+          Arena ${r.id}${r.isBot?' 🤖':''}
+        </h4>
+        <span class="font-label text-[10px] uppercase px-2 py-1 rounded ${stateBadge}">${r.state==='playing'?'W grze':'Oczekuje'}</span>
       </div>
-      <div class="flex gap-4">
-        <span class="font-label text-xs" style="color:${TEAM_COLOR.gold}">● Złoci ${r.gold}/3</span>
-        <span class="font-label text-xs" style="color:${TEAM_COLOR.rose}">● Różowi ${r.rose}/3</span>
-      </div>
-      <div class="text-[10px] font-label text-gray-500">Do ${5} goli · 3 minuty</div>
-      <button onclick="haxSelectRoom(${r.id})" class="w-full py-2.5 bg-primary text-on-primary font-label font-bold text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all">WYBIERZ ARENĘ</button>
+      <div class="flex gap-3">${playersInfo}</div>
+      <div class="text-[10px] font-label text-gray-500">Do 5 goli · 3 min${r.isBot?' · Solo vs boty':''}</div>
+      ${btn}
     `;
     grid.appendChild(div);
-  });
+  };
+
+  addHeader('Areny dla graczy');
+  human.forEach(addRoom);
+  addHeader('Areny z botami 🤖');
+  bot.forEach(addRoom);
 }
 
-function haxSelectRoom(id) {
+function haxSelectRoom(id, isBot) {
   haxPickedRoom = id;
-  haxPickedTeam = null;
   document.getElementById('hax-join-form').classList.remove('hidden');
-  document.getElementById('hax-join-btn').disabled = true;
-  document.getElementById('hax-btn-gold').classList.remove('selected');
-  document.getElementById('hax-btn-rose').classList.remove('selected');
+  if (isBot) {
+    // Bot arena: always gold team, join immediately
+    haxPickedTeam = 'gold';
+    document.getElementById('hax-btn-gold').classList.add('selected');
+    document.getElementById('hax-btn-rose').classList.remove('selected');
+    document.getElementById('hax-btn-rose').style.opacity = '0.35';
+    document.getElementById('hax-btn-rose').style.pointerEvents = 'none';
+    document.getElementById('hax-join-btn').disabled = false;
+  } else {
+    haxPickedTeam = null;
+    document.getElementById('hax-join-btn').disabled = true;
+    document.getElementById('hax-btn-gold').classList.remove('selected');
+    document.getElementById('hax-btn-rose').classList.remove('selected');
+    document.getElementById('hax-btn-rose').style.opacity = '';
+    document.getElementById('hax-btn-rose').style.pointerEvents = '';
+  }
 }
 
 function haxPickTeam(team) {

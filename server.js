@@ -611,11 +611,61 @@ const BR = 11, BM = 1,   BF = 0.988, BB = 0.74;             // ball physics
 const HAX_GOAL_LIMIT = 5;
 const HAX_TIME_LIMIT = 180;
 const HAX_ROOMS_COUNT = 3;
+const HAX_BOT_ROOMS_COUNT = 3;   // rooms 4,5,6
+const HAX_BOT_NAMES = ['Robo Rosa 🤖','Robo Striker 🤖','Robo Keeper 🤖'];
 
 const haxRooms = {};
 for (let i = 1; i <= HAX_ROOMS_COUNT; i++) {
-  haxRooms[i] = { id: i, players: [], ball: null, score: { gold: 0, rose: 0 },
+  haxRooms[i] = { id: i, isBot: false, players: [], ball: null, score: { gold: 0, rose: 0 },
     state: 'waiting', loop: null, tick: 0, startTs: 0, gcool: 0 };
+}
+for (let i = HAX_ROOMS_COUNT + 1; i <= HAX_ROOMS_COUNT + HAX_BOT_ROOMS_COUNT; i++) {
+  haxRooms[i] = { id: i, isBot: true, players: [], ball: null, score: { gold: 0, rose: 0 },
+    state: 'waiting', loop: null, tick: 0, startTs: 0, gcool: 0 };
+  haxSeedBots(i);
+}
+
+function haxMakeBot(rid, idx) {
+  return { id: `hbot-${rid}-${idx}`, name: HAX_BOT_NAMES[idx % HAX_BOT_NAMES.length],
+    team: 'rose', x: FW*0.72, y: FH/2 + (idx-0.5)*60,
+    vx: 0, vy: 0, keys: {}, isBot: true };
+}
+
+function haxSeedBots(rid) {
+  const r = haxRooms[rid];
+  r.players = r.players.filter(p => !p.isBot);
+  for (let i = 0; i < 2; i++) r.players.push(haxMakeBot(rid, i));
+}
+
+// Bot AI — rose bots attack left goal (rose scores when ball in left net x<0)
+function haxBotAI(bot, ball, idx) {
+  // Bot 0 = striker (aggressive), Bot 1 = midfielder (moderate)
+  const aggression = idx === 0 ? 1.0 : 0.7;
+
+  // Approach from right side of ball to push it left
+  const distToBall = Math.hypot(ball.x - bot.x, ball.y - bot.y);
+  let tx, ty;
+
+  if (distToBall < 100 * aggression) {
+    // Rush ball directly
+    tx = ball.x + 5;            // slightly to the right so we push left
+    ty = ball.y;
+  } else {
+    // Position to the right of the ball, matching y
+    tx = ball.x + 35;
+    ty = ball.y + (bot.y - ball.y) * 0.3;
+  }
+
+  // Small per-tick randomness so bots don't stack perfectly
+  tx += (Math.random() - 0.5) * 12;
+  ty += (Math.random() - 0.5) * 12;
+
+  return {
+    left:  bot.x > tx + 7,
+    right: bot.x < tx - 7,
+    up:    bot.y > ty + 7,
+    down:  bot.y < ty - 7,
+  };
 }
 
 function haxBallObj() { return { x: FW/2, y: FH/2, vx: 0, vy: 0 }; }
@@ -648,6 +698,13 @@ function haxTick(rid) {
   const r = haxRooms[rid];
   r.tick++;
   if (r.gcool > 0) { r.gcool--; if (r.tick % 2 === 0) haxBcast(rid); return; }
+
+  // Update bot keys (every 4 ticks ≈ 15fps to save CPU)
+  if (r.isBot && r.ball && r.tick % 4 === 0) {
+    r.players.filter(p => p.isBot).forEach((bot, idx) => {
+      bot.keys = haxBotAI(bot, r.ball, idx);
+    });
+  }
 
   // Move players
   for (const p of r.players) {
@@ -719,7 +776,17 @@ function haxTick(rid) {
       if (r.score[goal] >= HAX_GOAL_LIMIT) {
         haxStop(rid);
         io.to(`hax:${rid}`).emit('hax:gameover', { winner: goal, score: r.score });
-      } else { haxSpawn(r); }
+        // Bot rooms: restart immediately after 4s for rematch
+        if (r.isBot) setTimeout(() => {
+          if (r.players.some(p => !p.isBot)) {
+            haxSeedBots(rid);
+            haxStart(rid);
+          }
+        }, 4000);
+      } else {
+        if (r.isBot) haxSeedBots(rid); // re-seed bots (keep positions fresh)
+        haxSpawn(r);
+      }
     }, 2000);
   }
 
@@ -754,7 +821,7 @@ function haxPost(b, px, py) {
   }
 }
 
-function haxRoster(r) { return r.players.map(p => ({ id:p.id, name:p.name, team:p.team })); }
+function haxRoster(r) { return r.players.map(p => ({ id:p.id, name:p.name, team:p.team, isBot:!!p.isBot })); }
 
 function haxResolve(a, ra, ma, b, rb, mb, rest) {
   const dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx,dy), md = ra+rb;
@@ -880,9 +947,10 @@ io.on('connection', socket => {
 
   socket.on('hax:rooms', () => {
     socket.emit('hax:rooms', Object.values(haxRooms).map(r => ({
-      id: r.id, state: r.state, score: r.score,
-      gold:  r.players.filter(p => p.team === 'gold').length,
-      rose:  r.players.filter(p => p.team === 'rose').length,
+      id: r.id, state: r.state, score: r.score, isBot: r.isBot,
+      gold: r.players.filter(p => p.team==='gold' && !p.isBot).length,
+      rose: r.players.filter(p => p.team==='rose' && !p.isBot).length,
+      bots: r.players.filter(p => p.isBot).length,
     })));
   });
 
@@ -894,33 +962,44 @@ io.on('connection', socket => {
         pr.players = pr.players.filter(p => p.id !== socket.id);
         socket.leave(`hax:${haxRid}`);
         io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(pr));
-        if (pr.players.length === 0) haxStop(haxRid);
+        if (pr.players.filter(p=>!p.isBot).length === 0) haxStop(haxRid);
       }
       haxRid = null;
     }
     const r = haxRooms[roomId];
     if (!r) return;
-    if (r.players.filter(p => p.team === team).length >= 3)
+
+    // Bot room: human always joins gold, max 1 human
+    const effectiveTeam = r.isBot ? 'gold' : team;
+    if (r.isBot && r.players.filter(p => !p.isBot).length >= 1)
+      return socket.emit('error', 'Arena z botami — tylko 1 gracz');
+    if (!r.isBot && r.players.filter(p => p.team === effectiveTeam).length >= 3)
       return socket.emit('error', 'Drużyna pełna (max 3)');
 
     haxRid = roomId;
     r.players.push({ id: socket.id, name: (name||'Gracz').slice(0,14),
-      team, x: team==='gold'?FW*0.28:FW*0.72, y: FH/2, vx:0, vy:0, keys:{} });
+      team: effectiveTeam, x: effectiveTeam==='gold'?FW*0.28:FW*0.72,
+      y: FH/2, vx:0, vy:0, keys:{}, isBot: false });
     socket.join(`hax:${roomId}`);
-    socket.emit('hax:joined', { roomId, team });
+    socket.emit('hax:joined', { roomId, team: effectiveTeam });
     io.to(`hax:${roomId}`).emit('hax:roster', haxRoster(r));
 
-    // Auto-start when both teams present
+    // Auto-start
     if (r.state === 'waiting') {
-      const hasG = r.players.some(p => p.team==='gold');
-      const hasR = r.players.some(p => p.team==='rose');
-      if (hasG && hasR) {
-        setTimeout(() => {
-          if (r.state === 'waiting' &&
-              r.players.some(p=>p.team==='gold') &&
-              r.players.some(p=>p.team==='rose'))
-            haxStart(roomId);
-        }, 3000);
+      if (r.isBot) {
+        // Start immediately (bots already on rose team)
+        setTimeout(() => { if (r.state==='waiting') haxStart(roomId); }, 1500);
+      } else {
+        const hasG = r.players.some(p => p.team==='gold');
+        const hasR = r.players.some(p => p.team==='rose');
+        if (hasG && hasR) {
+          setTimeout(() => {
+            if (r.state==='waiting' &&
+                r.players.some(p=>p.team==='gold') &&
+                r.players.some(p=>p.team==='rose'))
+              haxStart(roomId);
+          }, 3000);
+        }
       }
     }
   });
@@ -937,8 +1016,12 @@ io.on('connection', socket => {
     if (r) {
       r.players = r.players.filter(p => p.id !== socket.id);
       socket.leave(`hax:${haxRid}`);
+      const humans = r.players.filter(p => !p.isBot);
+      if (humans.length === 0) {
+        haxStop(haxRid);
+        if (r.isBot) haxSeedBots(haxRid);
+      }
       io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(r));
-      if (r.players.length === 0) haxStop(haxRid);
     }
     haxRid = null;
   });
@@ -949,8 +1032,12 @@ io.on('connection', socket => {
       const r = haxRooms[haxRid];
       if (r) {
         r.players = r.players.filter(p => p.id !== socket.id);
+        const humans = r.players.filter(p => !p.isBot);
+        if (humans.length === 0) {
+          haxStop(haxRid);
+          if (r.isBot) haxSeedBots(haxRid);
+        }
         io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(r));
-        if (r.players.length === 0) haxStop(haxRid);
       }
     }
     // Poker cleanup
