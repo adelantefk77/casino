@@ -601,6 +601,174 @@ function checkRoomAfterLeave(roomId) {
   }
 }
 
+// ─── HaxBall constants ────────────────────────────────────────────────────────
+const FW = 820, FH = 500;                     // field size
+const GH = 150, GD = 32;                      // goal height, depth
+const GY1 = (FH - GH) / 2;                   // goal top y = 175
+const GY2 = (FH + GH) / 2;                   // goal bottom y = 325
+const PR = 15, PM = 2.5, PA = 0.48, PMS = 6.5, PF = 0.82;   // player physics
+const BR = 11, BM = 1,   BF = 0.988, BB = 0.74;             // ball physics
+const HAX_GOAL_LIMIT = 5;
+const HAX_TIME_LIMIT = 180;
+const HAX_ROOMS_COUNT = 3;
+
+const haxRooms = {};
+for (let i = 1; i <= HAX_ROOMS_COUNT; i++) {
+  haxRooms[i] = { id: i, players: [], ball: null, score: { gold: 0, rose: 0 },
+    state: 'waiting', loop: null, tick: 0, startTs: 0, gcool: 0 };
+}
+
+function haxBallObj() { return { x: FW/2, y: FH/2, vx: 0, vy: 0 }; }
+
+function haxSpawn(room) {
+  const gold = room.players.filter(p => p.team === 'gold');
+  const rose = room.players.filter(p => p.team === 'rose');
+  gold.forEach((p, i) => { p.x = FW*0.28; p.y = FH/2 + (i - (gold.length-1)/2)*60; p.vx=0; p.vy=0; });
+  rose.forEach((p, i) => { p.x = FW*0.72; p.y = FH/2 + (i - (rose.length-1)/2)*60; p.vx=0; p.vy=0; });
+  room.ball = haxBallObj();
+}
+
+function haxStart(rid) {
+  const r = haxRooms[rid];
+  if (r.loop) clearInterval(r.loop);
+  r.state = 'playing'; r.score = { gold: 0, rose: 0 };
+  r.startTs = Date.now(); r.tick = 0; r.gcool = 0;
+  haxSpawn(r);
+  io.to(`hax:${rid}`).emit('hax:start', { score: r.score });
+  r.loop = setInterval(() => haxTick(rid), 1000/60);
+}
+
+function haxStop(rid) {
+  const r = haxRooms[rid];
+  if (r.loop) { clearInterval(r.loop); r.loop = null; }
+  r.state = 'waiting';
+}
+
+function haxTick(rid) {
+  const r = haxRooms[rid];
+  r.tick++;
+  if (r.gcool > 0) { r.gcool--; if (r.tick % 2 === 0) haxBcast(rid); return; }
+
+  // Move players
+  for (const p of r.players) {
+    const k = p.keys || {};
+    let ax = 0, ay = 0;
+    if (k.up)    ay -= PA;
+    if (k.down)  ay += PA;
+    if (k.left)  ax -= PA;
+    if (k.right) ax += PA;
+    if (ax && ay) { ax *= 0.707; ay *= 0.707; }
+    p.vx = (p.vx + ax) * PF;
+    p.vy = (p.vy + ay) * PF;
+    const spd = Math.hypot(p.vx, p.vy);
+    if (spd > PMS) { p.vx *= PMS/spd; p.vy *= PMS/spd; }
+    p.x += p.vx; p.y += p.vy;
+    if (p.y < PR)       { p.y = PR;       p.vy =  Math.abs(p.vy) * 0.5; }
+    if (p.y > FH - PR)  { p.y = FH - PR;  p.vy = -Math.abs(p.vy) * 0.5; }
+    if (p.x < PR)       { p.x = PR;       p.vx =  Math.abs(p.vx) * 0.5; }
+    if (p.x > FW - PR)  { p.x = FW - PR;  p.vx = -Math.abs(p.vx) * 0.5; }
+  }
+
+  // Move ball
+  const b = r.ball;
+  b.vx *= BF; b.vy *= BF;
+  b.x  += b.vx; b.y += b.vy;
+
+  // Ball wall bounces
+  if (b.y < BR)       { b.y = BR;       b.vy =  Math.abs(b.vy) * BB; }
+  if (b.y > FH - BR)  { b.y = FH - BR;  b.vy = -Math.abs(b.vy) * BB; }
+
+  // Left wall (goal opening GY1..GY2)
+  if (b.x - BR < 0) {
+    if (b.y >= GY1 && b.y <= GY2) {
+      if (b.x - BR < -GD) { b.x = -GD + BR; b.vx = Math.abs(b.vx) * BB; }
+    } else { b.x = BR; b.vx = Math.abs(b.vx) * BB; }
+  }
+  // Right wall
+  if (b.x + BR > FW) {
+    if (b.y >= GY1 && b.y <= GY2) {
+      if (b.x + BR > FW + GD) { b.x = FW + GD - BR; b.vx = -Math.abs(b.vx) * BB; }
+    } else { b.x = FW - BR; b.vx = -Math.abs(b.vx) * BB; }
+  }
+
+  // Goal post bounces
+  haxPost(b, 0,  GY1); haxPost(b, 0,  GY2);
+  haxPost(b, FW, GY1); haxPost(b, FW, GY2);
+
+  // Collisions
+  for (const p of r.players) haxResolve(p, PR, PM, b, BR, BM, 0.8);
+  for (let i = 0; i < r.players.length; i++)
+    for (let j = i+1; j < r.players.length; j++)
+      haxResolve(r.players[i], PR, PM, r.players[j], PR, PM, 0.5);
+
+  // Cap ball speed
+  const bspd = Math.hypot(b.vx, b.vy);
+  if (bspd > 20) { b.vx *= 20/bspd; b.vy *= 20/bspd; }
+
+  // Goal check
+  const inY = b.y >= GY1 && b.y <= GY2;
+  let goal = null;
+  if (inY && b.x - BR < -GD * 0.6)      goal = 'rose';  // ball in left net → rose scores
+  else if (inY && b.x + BR > FW + GD * 0.6) goal = 'gold'; // ball in right net → gold scores
+
+  if (goal) {
+    r.score[goal]++;
+    r.gcool = 120;
+    io.to(`hax:${rid}`).emit('hax:goal', { scorer: goal, score: r.score });
+    setTimeout(() => {
+      if (r.score[goal] >= HAX_GOAL_LIMIT) {
+        haxStop(rid);
+        io.to(`hax:${rid}`).emit('hax:gameover', { winner: goal, score: r.score });
+      } else { haxSpawn(r); }
+    }, 2000);
+  }
+
+  const elapsed = (Date.now() - r.startTs) / 1000;
+  if (elapsed >= HAX_TIME_LIMIT) {
+    haxStop(rid);
+    const w = r.score.gold > r.score.rose ? 'gold' : r.score.rose > r.score.gold ? 'rose' : 'draw';
+    io.to(`hax:${rid}`).emit('hax:gameover', { winner: w, score: r.score });
+    return;
+  }
+
+  if (r.tick % 2 === 0) haxBcast(rid, elapsed);
+}
+
+function haxBcast(rid, elapsed) {
+  const r = haxRooms[rid];
+  io.to(`hax:${rid}`).emit('hax:state', {
+    players: r.players.map(p => ({ id: p.id, x: p.x, y: p.y, team: p.team, name: p.name })),
+    ball:    r.ball ? { x: r.ball.x, y: r.ball.y } : { x: FW/2, y: FH/2 },
+    score:   r.score,
+    time:    elapsed !== undefined ? Math.max(0, HAX_TIME_LIMIT - elapsed) : HAX_TIME_LIMIT,
+  });
+}
+
+function haxPost(b, px, py) {
+  const dx = b.x - px, dy = b.y - py, d = Math.hypot(dx, dy);
+  if (d < BR + 5 && d > 0.001) {
+    const nx = dx/d, ny = dy/d;
+    b.x = px + nx*(BR+5.1); b.y = py + ny*(BR+5.1);
+    const dot = b.vx*nx + b.vy*ny;
+    if (dot < 0) { b.vx -= 2*dot*nx*BB; b.vy -= 2*dot*ny*BB; }
+  }
+}
+
+function haxRoster(r) { return r.players.map(p => ({ id:p.id, name:p.name, team:p.team })); }
+
+function haxResolve(a, ra, ma, b, rb, mb, rest) {
+  const dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx,dy), md = ra+rb;
+  if (d >= md || d < 0.001) return;
+  const nx = dx/d, ny = dy/d, ov = md-d, tm = ma+mb;
+  a.x -= nx*ov*mb/tm; a.y -= ny*ov*mb/tm;
+  b.x += nx*ov*ma/tm; b.y += ny*ov*ma/tm;
+  const rvx = b.vx-a.vx, rvy = b.vy-a.vy, rv = rvx*nx + rvy*ny;
+  if (rv >= 0) return;
+  const j = -(1+rest)*rv/(1/ma+1/mb);
+  a.vx -= j/ma*nx; a.vy -= j/ma*ny;
+  b.vx += j/mb*nx; b.vy += j/mb*ny;
+}
+
 // ─── Global chat ──────────────────────────────────────────────────────────────
 const chatHistory = [];
 function chatPush(msg) {
@@ -707,7 +875,85 @@ io.on('connection', socket => {
     handleAction(playerRoomId, socket.id, action, amount);
   });
 
+  // ── HaxBall handlers ──────────────────────────────────────────────────────
+  let haxRid = null;
+
+  socket.on('hax:rooms', () => {
+    socket.emit('hax:rooms', Object.values(haxRooms).map(r => ({
+      id: r.id, state: r.state, score: r.score,
+      gold:  r.players.filter(p => p.team === 'gold').length,
+      rose:  r.players.filter(p => p.team === 'rose').length,
+    })));
+  });
+
+  socket.on('hax:join', ({ roomId, team, name }) => {
+    // Leave previous hax room
+    if (haxRid) {
+      const pr = haxRooms[haxRid];
+      if (pr) {
+        pr.players = pr.players.filter(p => p.id !== socket.id);
+        socket.leave(`hax:${haxRid}`);
+        io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(pr));
+        if (pr.players.length === 0) haxStop(haxRid);
+      }
+      haxRid = null;
+    }
+    const r = haxRooms[roomId];
+    if (!r) return;
+    if (r.players.filter(p => p.team === team).length >= 3)
+      return socket.emit('error', 'Drużyna pełna (max 3)');
+
+    haxRid = roomId;
+    r.players.push({ id: socket.id, name: (name||'Gracz').slice(0,14),
+      team, x: team==='gold'?FW*0.28:FW*0.72, y: FH/2, vx:0, vy:0, keys:{} });
+    socket.join(`hax:${roomId}`);
+    socket.emit('hax:joined', { roomId, team });
+    io.to(`hax:${roomId}`).emit('hax:roster', haxRoster(r));
+
+    // Auto-start when both teams present
+    if (r.state === 'waiting') {
+      const hasG = r.players.some(p => p.team==='gold');
+      const hasR = r.players.some(p => p.team==='rose');
+      if (hasG && hasR) {
+        setTimeout(() => {
+          if (r.state === 'waiting' &&
+              r.players.some(p=>p.team==='gold') &&
+              r.players.some(p=>p.team==='rose'))
+            haxStart(roomId);
+        }, 3000);
+      }
+    }
+  });
+
+  socket.on('hax:keys', keys => {
+    if (!haxRid) return;
+    const p = haxRooms[haxRid]?.players.find(pl => pl.id === socket.id);
+    if (p) p.keys = keys;
+  });
+
+  socket.on('hax:leave', () => {
+    if (!haxRid) return;
+    const r = haxRooms[haxRid];
+    if (r) {
+      r.players = r.players.filter(p => p.id !== socket.id);
+      socket.leave(`hax:${haxRid}`);
+      io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(r));
+      if (r.players.length === 0) haxStop(haxRid);
+    }
+    haxRid = null;
+  });
+
   socket.on('disconnect', () => {
+    // HaxBall cleanup
+    if (haxRid) {
+      const r = haxRooms[haxRid];
+      if (r) {
+        r.players = r.players.filter(p => p.id !== socket.id);
+        io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(r));
+        if (r.players.length === 0) haxStop(haxRid);
+      }
+    }
+    // Poker cleanup
     if (!playerRoomId || !playerName) return;
     playerDisconnected(socket, playerRoomId, playerName);
   });

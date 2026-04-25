@@ -232,6 +232,17 @@ tailwind.config = {
 #chat-panel { transition: transform 0.3s ease; }
 /* ─── Login Modal ──────────────────────────────────────────────────────────── */
 #login-modal { backdrop-filter: blur(12px); }
+/* ─── HaxBall ──────────────────────────────────────────────────────────────── */
+#hax-canvas { display:block; width:100%; image-rendering:pixelated; border:2px solid rgba(233,195,73,0.25); border-radius:4px; }
+.hax-team-btn { transition:all 0.15s; }
+.hax-team-btn.selected { box-shadow:0 0 0 2px currentColor, 0 0 16px rgba(233,195,73,0.3); }
+@keyframes goalFlash { 0%{opacity:0;transform:scale(0.5)} 20%{opacity:1;transform:scale(1.1)} 80%{opacity:1;transform:scale(1)} 100%{opacity:0} }
+#hax-goal-flash { animation: none; }
+#hax-goal-flash.show { animation: goalFlash 2s ease forwards; }
+.hax-touch-btn { width:52px;height:52px;border:1px solid rgba(233,195,73,0.25);background:rgba(20,20,20,0.85);
+  display:flex;align-items:center;justify-content:center;border-radius:4px;
+  font-size:20px;color:#e9c349;user-select:none;-webkit-user-select:none;touch-action:none; }
+.hax-touch-btn:active { background:rgba(233,195,73,0.15); }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body selection:bg-primary/30 selection:text-primary overflow-x-hidden">
@@ -300,6 +311,10 @@ tailwind.config = {
     <a id="nav-poker" onclick="showGame('poker')" class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer">
       <span class="material-symbols-outlined mr-4 text-xl">style</span>
       <span class="font-label text-xs uppercase tracking-widest">Texas Hold'em</span>
+    </a>
+    <a id="nav-hax" onclick="showGame('haxball')" class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5 cursor-pointer">
+      <span class="material-symbols-outlined mr-4 text-xl">sports_soccer</span>
+      <span class="font-label text-xs uppercase tracking-widest">HaxBall Arena</span>
     </a>
     <a class="side-nav-link flex items-center px-6 py-3 text-gray-500 hover:text-primary/70 hover:bg-white/5" href="#">
       <span class="material-symbols-outlined mr-4 text-xl">stars</span>
@@ -887,6 +902,109 @@ tailwind.config = {
   </div>
 </div><!-- /poker-section -->
 
+<!-- ══════════ HAXBALL SECTION ══════════ -->
+<div id="haxball-section" class="hidden">
+<div class="max-w-4xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h2 class="font-headline text-2xl text-primary font-black tracking-tight">⚽ HaxBall Arena</h2>
+      <p class="font-label text-[10px] text-gray-500 tracking-widest uppercase">Multiplayer · 3 Areny</p>
+    </div>
+    <button id="hax-leave-btn" onclick="haxLeave()" class="hidden font-label text-xs text-secondary border border-secondary/40 px-4 py-2 hover:bg-secondary/10 transition-all">Wyjdź</button>
+  </div>
+
+  <!-- LOBBY -->
+  <div id="hax-lobby">
+    <div id="hax-rooms-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
+    <div id="hax-join-form" class="hidden bg-surface-container-low border border-white/5 rounded-lg p-6 max-w-xs">
+      <h3 class="font-label text-[10px] tracking-[0.3em] uppercase text-primary mb-4">Wybierz drużynę</h3>
+      <div class="flex gap-3 mb-5">
+        <button onclick="haxPickTeam('gold')" id="hax-btn-gold"
+          class="hax-team-btn flex-1 py-3 border border-primary/50 text-primary font-label font-bold text-xs tracking-widest hover:bg-primary/10">
+          ● Złoci
+        </button>
+        <button onclick="haxPickTeam('rose')" id="hax-btn-rose"
+          class="hax-team-btn flex-1 py-3 border border-secondary/50 text-secondary font-label font-bold text-xs tracking-widest hover:bg-secondary/10">
+          ● Różowi
+        </button>
+      </div>
+      <button onclick="haxJoin()" id="hax-join-btn" disabled
+        class="w-full py-3 bg-primary text-on-primary font-label font-bold text-xs tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40">
+        DOŁĄCZ
+      </button>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="hax-game" class="hidden">
+
+    <!-- HUD -->
+    <div class="flex items-center justify-between mb-3 px-1">
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 rounded-full bg-primary shadow-lg shadow-primary/50"></div>
+        <span id="hax-score-gold" class="font-headline text-4xl text-primary font-black leading-none">0</span>
+        <span class="font-label text-[10px] text-gray-600 uppercase">Złoci</span>
+      </div>
+      <div class="text-center">
+        <div id="hax-time" class="font-headline text-2xl text-on-surface font-black">3:00</div>
+        <div id="hax-status" class="font-label text-[9px] text-gray-500 uppercase tracking-widest">Oczekiwanie</div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="font-label text-[10px] text-gray-600 uppercase">Różowi</span>
+        <span id="hax-score-rose" class="font-headline text-4xl text-secondary font-black leading-none">0</span>
+        <div class="w-3 h-3 rounded-full bg-secondary shadow-lg shadow-secondary/50"></div>
+      </div>
+    </div>
+
+    <!-- Canvas wrapper -->
+    <div class="relative">
+      <canvas id="hax-canvas" width="820" height="500"></canvas>
+      <div id="hax-goal-flash" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0">
+        <span id="hax-goal-text" class="font-headline text-5xl font-black drop-shadow-2xl"></span>
+      </div>
+      <!-- Waiting overlay -->
+      <div id="hax-waiting-overlay" class="absolute inset-0 flex items-center justify-center bg-black/60 rounded">
+        <p class="font-label text-xs text-primary uppercase tracking-widest animate-pulse">Czekamy na obie drużyny…</p>
+      </div>
+    </div>
+
+    <!-- Mobile touch controls -->
+    <div class="md:hidden mt-4 flex justify-center">
+      <div class="relative" style="width:160px;height:160px">
+        <div class="hax-touch-btn absolute" style="top:0;left:50%;transform:translateX(-50%)"
+          onpointerdown="haxKD('up')" onpointerup="haxKU('up')" onpointercancel="haxKU('up')">▲</div>
+        <div class="hax-touch-btn absolute" style="bottom:0;left:50%;transform:translateX(-50%)"
+          onpointerdown="haxKD('down')" onpointerup="haxKU('down')" onpointercancel="haxKU('down')">▼</div>
+        <div class="hax-touch-btn absolute" style="top:50%;left:0;transform:translateY(-50%)"
+          onpointerdown="haxKD('left')" onpointerup="haxKU('left')" onpointercancel="haxKU('left')">◀</div>
+        <div class="hax-touch-btn absolute" style="top:50%;right:0;transform:translateY(-50%)"
+          onpointerdown="haxKD('right')" onpointerup="haxKU('right')" onpointercancel="haxKU('right')">▶</div>
+      </div>
+    </div>
+
+    <!-- Keyboard hint -->
+    <p class="hidden md:block text-center font-label text-[10px] text-gray-600 uppercase tracking-widest mt-3">
+      WASD / Strzałki — ruch
+    </p>
+
+    <!-- Roster -->
+    <div class="grid grid-cols-2 gap-4 mt-5">
+      <div class="bg-surface-container-low border border-primary/15 rounded-lg p-3">
+        <p class="font-label text-[9px] text-primary uppercase tracking-[0.3em] mb-2">⚽ Złoci</p>
+        <div id="hax-roster-gold" class="space-y-1"></div>
+      </div>
+      <div class="bg-surface-container-low border border-secondary/15 rounded-lg p-3">
+        <p class="font-label text-[9px] text-secondary uppercase tracking-[0.3em] mb-2">⚽ Różowi</p>
+        <div id="hax-roster-rose" class="space-y-1"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /haxball-section -->
+
 </main>
 
 <!-- ══════════ CHAT PANEL (desktop right sidebar) ══════════ -->
@@ -960,6 +1078,11 @@ tailwind.config = {
       class="flex-1 flex items-center justify-center gap-2 py-2.5 text-gray-500 border-b-2 border-transparent transition-all">
       <span class="material-symbols-outlined text-base">style</span>
       <span class="font-label text-[10px] uppercase tracking-widest">Poker</span>
+    </button>
+    <button id="mob-nav-hax" onclick="showGame('haxball')"
+      class="flex-1 flex items-center justify-center gap-2 py-2.5 text-gray-500 border-b-2 border-transparent transition-all">
+      <span class="material-symbols-outlined text-base">sports_soccer</span>
+      <span class="font-label text-[10px] uppercase tracking-widest">HaxBall</span>
     </button>
   </div>
   <!-- Balance bar -->
@@ -1397,6 +1520,7 @@ function showGame(game) {
   document.getElementById('nav-slots').className     = game==='slots'     ? sideActive : sideInactive;
   document.getElementById('nav-blackjack').className = game==='blackjack' ? sideActive : sideInactive;
   document.getElementById('nav-poker').className     = game==='poker'     ? sideActive : sideInactive;
+  document.getElementById('nav-hax').className       = game==='haxball'   ? sideActive : sideInactive;
 
   // Bottom nav (mobile)
   const mobActive   = 'flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-primary/15 to-transparent border-b-2 border-primary text-primary transition-all';
@@ -1405,14 +1529,17 @@ function showGame(game) {
   document.getElementById('mob-nav-slots').className     = game==='slots'     ? mobActive : mobInactive;
   document.getElementById('mob-nav-blackjack').className = game==='blackjack' ? mobActive : mobInactive;
   document.getElementById('mob-nav-poker').className     = game==='poker'     ? mobActive : mobInactive;
+  document.getElementById('mob-nav-hax').className       = game==='haxball'   ? mobActive : mobInactive;
 
   // Sections
   document.getElementById('roulette-section').classList.toggle('hidden',  game !== 'roulette');
   document.getElementById('slots-section').classList.toggle('hidden',     game !== 'slots');
   document.getElementById('blackjack-section').classList.toggle('hidden', game !== 'blackjack');
   document.getElementById('poker-section').classList.toggle('hidden',     game !== 'poker');
+  document.getElementById('haxball-section').classList.toggle('hidden',   game !== 'haxball');
 
-  if (game === 'poker') pokerOnEnter();
+  if (game === 'poker')   pokerOnEnter();
+  if (game === 'haxball') haxOnEnter();
 }
 
 // ─── Slot Machine ─────────────────────────────────────────────────────────────
@@ -2407,6 +2534,316 @@ function toggleChat() {
     bg.classList.add('opacity-0'); bg.classList.remove('opacity-100');
     panel.classList.add('translate-y-full');
   }
+}
+
+// ─── HaxBall ──────────────────────────────────────────────────────────────────
+const HAX_FW = 820, HAX_FH = 500;
+const HAX_GH = 150, HAX_GD = 32;
+const HAX_GY1 = (HAX_FH - HAX_GH) / 2;   // 175
+const HAX_GY2 = (HAX_FH + HAX_GH) / 2;   // 325
+const HAX_PR = 15, HAX_BR = 11;
+
+// Colors matching casino theme
+const TEAM_COLOR  = { gold: '#e9c349', rose: '#ffb4a8' };
+const TEAM_GLOW   = { gold: 'rgba(233,195,73,0.6)', rose: 'rgba(255,180,168,0.6)' };
+const FIELD_BG    = '#0c1f08';
+const FIELD_LINE  = 'rgba(233,195,73,0.25)';
+const FIELD_LINE2 = 'rgba(233,195,73,0.5)';
+
+let haxSocket = null;
+let haxMyId   = null;
+let haxMyTeam = null;
+let haxPickedRoom = null;
+let haxPickedTeam = null;
+let haxState  = null;
+let haxRoster = [];
+let haxKeys   = { up:false, down:false, left:false, right:false };
+let haxRAF    = null;
+let haxRunning = false;
+
+function haxOnEnter() {
+  if (!haxSocket) haxInitSocket();
+  else haxSocket.emit('hax:rooms');
+}
+
+function haxInitSocket() {
+  haxSocket = io({ reconnection:true, reconnectionAttempts:Infinity });
+
+  haxSocket.on('connect', () => {
+    haxMyId = haxSocket.id;
+    haxSocket.emit('hax:rooms');
+  });
+
+  haxSocket.on('hax:rooms', rooms => haxDrawLobby(rooms));
+
+  haxSocket.on('hax:joined', ({ roomId, team }) => {
+    haxMyTeam = team;
+    document.getElementById('hax-lobby').classList.add('hidden');
+    document.getElementById('hax-game').classList.remove('hidden');
+    document.getElementById('hax-leave-btn').classList.remove('hidden');
+    haxRunning = true;
+    haxLoop();
+    haxSetupKeys();
+  });
+
+  haxSocket.on('hax:start', ({ score }) => {
+    haxState = haxState || {};
+    haxState.score = score;
+    haxState.time  = 180;
+    document.getElementById('hax-status').textContent = 'W grze';
+    document.getElementById('hax-waiting-overlay').style.display = 'none';
+    haxUpdateHUD();
+  });
+
+  haxSocket.on('hax:state', s => {
+    haxState = s;
+    haxUpdateHUD();
+  });
+
+  haxSocket.on('hax:goal', ({ scorer, score }) => {
+    haxState = haxState || {};
+    haxState.score = score;
+    haxUpdateHUD();
+    const fl = document.getElementById('hax-goal-flash');
+    const tx = document.getElementById('hax-goal-text');
+    tx.textContent = scorer === 'gold' ? '⚽ ZŁOCI STRZELAJĄ!' : '⚽ RÓŻOWI STRZELAJĄ!';
+    tx.style.color = TEAM_COLOR[scorer];
+    fl.classList.remove('show');
+    void fl.offsetWidth; // reflow
+    fl.classList.add('show');
+    fl.style.opacity = '';
+    setTimeout(() => { fl.classList.remove('show'); fl.style.opacity = '0'; }, 2200);
+  });
+
+  haxSocket.on('hax:gameover', ({ winner, score }) => {
+    haxState = haxState || {};
+    haxState.score = score;
+    haxUpdateHUD();
+    const msgs = { gold:'🏆 Złoci wygrali!', rose:'🏆 Różowi wygrali!', draw:'🤝 Remis!' };
+    document.getElementById('hax-status').textContent = msgs[winner] || 'Koniec!';
+    showToast(msgs[winner] || 'Koniec!');
+    document.getElementById('hax-waiting-overlay').style.display = 'flex';
+    document.getElementById('hax-waiting-overlay').querySelector('p').textContent = msgs[winner] || 'Koniec!';
+    setTimeout(() => {
+      document.getElementById('hax-waiting-overlay').querySelector('p').textContent = 'Czekamy na obie drużyny…';
+    }, 5000);
+  });
+
+  haxSocket.on('hax:roster', players => {
+    haxRoster = players;
+    haxMyId = haxSocket.id;
+    const gold = players.filter(p=>p.team==='gold');
+    const rose = players.filter(p=>p.team==='rose');
+    const rg = document.getElementById('hax-roster-gold');
+    const rr = document.getElementById('hax-roster-rose');
+    if (rg) rg.innerHTML = gold.map(p=>`<div class="font-label text-[11px] ${p.id===haxMyId?'text-primary font-bold':'text-gray-400'}">${p.id===haxMyId?'▶ ':''}${escHtml(p.name)}</div>`).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
+    if (rr) rr.innerHTML = rose.map(p=>`<div class="font-label text-[11px] ${p.id===haxMyId?'text-secondary font-bold':'text-gray-400'}">${p.id===haxMyId?'▶ ':''}${escHtml(p.name)}</div>`).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
+    // Show start overlay if any team missing
+    const overlay = document.getElementById('hax-waiting-overlay');
+    if (overlay) {
+      const bothTeams = gold.length > 0 && rose.length > 0;
+      overlay.style.display = bothTeams ? 'none' : 'flex';
+    }
+  });
+}
+
+function haxDrawLobby(rooms) {
+  const grid = document.getElementById('hax-rooms-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  rooms.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'bg-surface-container-low border border-white/5 rounded-lg p-5 flex flex-col gap-3 hover:border-primary/20 transition-colors';
+    div.innerHTML = `
+      <div class="flex items-center justify-between">
+        <h4 class="font-headline text-primary text-lg font-black">Arena ${r.id}</h4>
+        <span class="font-label text-[10px] uppercase px-2 py-1 rounded ${r.state==='playing'?'bg-secondary/20 text-secondary':'bg-primary/10 text-primary'}">${r.state==='playing'?'W grze':'Oczekuje'}</span>
+      </div>
+      <div class="flex gap-4">
+        <span class="font-label text-xs" style="color:${TEAM_COLOR.gold}">● Złoci ${r.gold}/3</span>
+        <span class="font-label text-xs" style="color:${TEAM_COLOR.rose}">● Różowi ${r.rose}/3</span>
+      </div>
+      <div class="text-[10px] font-label text-gray-500">Do ${5} goli · 3 minuty</div>
+      <button onclick="haxSelectRoom(${r.id})" class="w-full py-2.5 bg-primary text-on-primary font-label font-bold text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all">WYBIERZ ARENĘ</button>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function haxSelectRoom(id) {
+  haxPickedRoom = id;
+  haxPickedTeam = null;
+  document.getElementById('hax-join-form').classList.remove('hidden');
+  document.getElementById('hax-join-btn').disabled = true;
+  document.getElementById('hax-btn-gold').classList.remove('selected');
+  document.getElementById('hax-btn-rose').classList.remove('selected');
+}
+
+function haxPickTeam(team) {
+  haxPickedTeam = team;
+  document.getElementById('hax-btn-gold').classList.toggle('selected', team==='gold');
+  document.getElementById('hax-btn-rose').classList.toggle('selected', team==='rose');
+  document.getElementById('hax-join-btn').disabled = false;
+}
+
+function haxJoin() {
+  if (!haxPickedRoom || !haxPickedTeam || !haxSocket) return;
+  haxSocket.emit('hax:join', { roomId: haxPickedRoom, team: haxPickedTeam, name: globalNick });
+}
+
+function haxLeave() {
+  if (haxSocket) haxSocket.emit('hax:leave');
+  haxRunning = false;
+  if (haxRAF) { cancelAnimationFrame(haxRAF); haxRAF = null; }
+  haxRemoveKeys();
+  document.getElementById('hax-lobby').classList.remove('hidden');
+  document.getElementById('hax-game').classList.add('hidden');
+  document.getElementById('hax-leave-btn').classList.add('hidden');
+  document.getElementById('hax-join-form').classList.add('hidden');
+  haxMyTeam = null; haxState = null;
+  if (haxSocket) haxSocket.emit('hax:rooms');
+}
+
+function haxUpdateHUD() {
+  const s = haxState?.score || { gold:0, rose:0 };
+  document.getElementById('hax-score-gold').textContent = s.gold;
+  document.getElementById('hax-score-rose').textContent = s.rose;
+  const t = haxState?.time ?? 180;
+  const m = Math.floor(t/60), sec = Math.floor(t%60);
+  document.getElementById('hax-time').textContent = `${m}:${sec.toString().padStart(2,'0')}`;
+}
+
+// ─── Canvas rendering ─────────────────────────────────────────────────────────
+function haxLoop() {
+  if (!haxRunning) return;
+  haxDraw();
+  haxRAF = requestAnimationFrame(haxLoop);
+}
+
+function haxDraw() {
+  const cv = document.getElementById('hax-canvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+
+  // Field background
+  ctx.fillStyle = FIELD_BG;
+  ctx.fillRect(0, 0, W, H);
+
+  // Grass stripes
+  for (let i=0;i<8;i++) {
+    if (i%2===0) { ctx.fillStyle='rgba(0,0,0,0.08)'; ctx.fillRect(i*W/8,0,W/8,H); }
+  }
+
+  // Border
+  ctx.strokeStyle = FIELD_LINE2;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(2, 2, W-4, H-4);
+
+  // Center line
+  ctx.strokeStyle = FIELD_LINE;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+
+  // Center circle
+  ctx.beginPath(); ctx.arc(W/2, H/2, 70, 0, Math.PI*2); ctx.stroke();
+
+  // Center dot
+  ctx.fillStyle = FIELD_LINE2;
+  ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
+
+  // Goal areas
+  const gy1 = HAX_GY1, gy2 = HAX_GY2;
+  ctx.fillStyle = 'rgba(233,195,73,0.07)';
+  ctx.fillRect(0, gy1, HAX_GD, gy2-gy1);
+  ctx.strokeStyle = TEAM_COLOR.gold; ctx.lineWidth = 1.5;
+  ctx.strokeRect(0, gy1, HAX_GD, gy2-gy1);
+
+  ctx.fillStyle = 'rgba(255,180,168,0.07)';
+  ctx.fillRect(W-HAX_GD, gy1, HAX_GD, gy2-gy1);
+  ctx.strokeStyle = TEAM_COLOR.rose;
+  ctx.strokeRect(W-HAX_GD, gy1, HAX_GD, gy2-gy1);
+
+  // Goal posts
+  [[0,gy1],[0,gy2],[W,gy1],[W,gy2]].forEach(([px,py]) => {
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2);
+    ctx.fillStyle = '#e9c349'; ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  if (!haxState) return;
+
+  // Players
+  for (const p of (haxState.players||[])) {
+    const isMe = p.id === haxMyId;
+    const col  = TEAM_COLOR[p.team] || '#fff';
+    const glow = TEAM_GLOW[p.team]  || 'rgba(255,255,255,0.3)';
+
+    if (isMe) {
+      ctx.shadowColor = glow; ctx.shadowBlur = 18;
+    }
+
+    const gr = ctx.createRadialGradient(p.x-4, p.y-4, 2, p.x, p.y, HAX_PR);
+    gr.addColorStop(0, '#fff');
+    gr.addColorStop(0.4, col);
+    gr.addColorStop(1, col+'99');
+    ctx.beginPath(); ctx.arc(p.x, p.y, HAX_PR, 0, Math.PI*2);
+    ctx.fillStyle = gr; ctx.fill();
+    ctx.strokeStyle = isMe ? '#fff' : col;
+    ctx.lineWidth = isMe ? 2.5 : 1.5;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Name
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold 10px 'Space Grotesk',sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+    ctx.fillText(p.name.slice(0,10), p.x, p.y - HAX_PR - 3);
+    ctx.shadowBlur = 0;
+  }
+
+  // Ball
+  const b = haxState.ball || { x: W/2, y: H/2 };
+  ctx.shadowColor = 'rgba(255,255,255,0.4)'; ctx.shadowBlur = 10;
+  const bg = ctx.createRadialGradient(b.x-3, b.y-3, 1, b.x, b.y, HAX_BR);
+  bg.addColorStop(0,'#ffffff'); bg.addColorStop(0.6,'#e0e0e0'); bg.addColorStop(1,'#aaaaaa');
+  ctx.beginPath(); ctx.arc(b.x, b.y, HAX_BR, 0, Math.PI*2);
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ─── Keyboard input ───────────────────────────────────────────────────────────
+const HAX_KEYMAP = { ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',
+  w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right' };
+
+function haxOnKD(e) {
+  const dir = HAX_KEYMAP[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  if (haxKeys[dir]) return;
+  haxKeys[dir] = true;
+  if (haxSocket) haxSocket.emit('hax:keys', {...haxKeys});
+}
+function haxOnKU(e) {
+  const dir = HAX_KEYMAP[e.key];
+  if (!dir) return;
+  haxKeys[dir] = false;
+  if (haxSocket) haxSocket.emit('hax:keys', {...haxKeys});
+}
+function haxKD(dir) { haxKeys[dir]=true; if(haxSocket) haxSocket.emit('hax:keys',{...haxKeys}); }
+function haxKU(dir) { haxKeys[dir]=false; if(haxSocket) haxSocket.emit('hax:keys',{...haxKeys}); }
+
+function haxSetupKeys() {
+  document.addEventListener('keydown', haxOnKD);
+  document.addEventListener('keyup',   haxOnKU);
+}
+function haxRemoveKeys() {
+  document.removeEventListener('keydown', haxOnKD);
+  document.removeEventListener('keyup',   haxOnKU);
+  haxKeys = { up:false, down:false, left:false, right:false };
+  if (haxSocket) haxSocket.emit('hax:keys', haxKeys);
 }
 
 // ─── Music Player ─────────────────────────────────────────────────────────────
