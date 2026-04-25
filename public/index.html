@@ -960,7 +960,7 @@ tailwind.config = {
 
     <!-- Canvas wrapper -->
     <div class="relative">
-      <canvas id="hax-canvas" width="820" height="500"></canvas>
+      <canvas id="hax-canvas" width="860" height="460"></canvas>
       <div id="hax-goal-flash" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0">
         <span id="hax-goal-text" class="font-headline text-5xl font-black drop-shadow-2xl"></span>
       </div>
@@ -971,8 +971,9 @@ tailwind.config = {
     </div>
 
     <!-- Mobile touch controls -->
-    <div class="md:hidden mt-4 flex justify-center">
-      <div class="relative" style="width:160px;height:160px">
+    <div class="md:hidden mt-4 flex items-center justify-center gap-6">
+      <!-- D-pad -->
+      <div class="relative" style="width:150px;height:150px">
         <div class="hax-touch-btn absolute" style="top:0;left:50%;transform:translateX(-50%)"
           onpointerdown="haxKD('up')" onpointerup="haxKU('up')" onpointercancel="haxKU('up')">▲</div>
         <div class="hax-touch-btn absolute" style="bottom:0;left:50%;transform:translateX(-50%)"
@@ -982,11 +983,14 @@ tailwind.config = {
         <div class="hax-touch-btn absolute" style="top:50%;right:0;transform:translateY(-50%)"
           onpointerdown="haxKD('right')" onpointerup="haxKU('right')" onpointercancel="haxKU('right')">▶</div>
       </div>
+      <!-- Kick button -->
+      <div class="hax-touch-btn" style="width:72px;height:72px;font-size:28px;border-color:rgba(233,195,73,0.6);box-shadow:0 0 16px rgba(233,195,73,0.2)"
+        onpointerdown="haxKD('kick')" onpointerup="haxKU('kick')" onpointercancel="haxKU('kick')">⚽</div>
     </div>
 
     <!-- Keyboard hint -->
     <p class="hidden md:block text-center font-label text-[10px] text-gray-600 uppercase tracking-widest mt-3">
-      WASD / Strzałki — ruch
+      WASD / Strzałki — ruch &nbsp;·&nbsp; X / Spacja — <strong class="text-primary">KICK</strong>
     </p>
 
     <!-- Roster -->
@@ -2537,11 +2541,12 @@ function toggleChat() {
 }
 
 // ─── HaxBall ──────────────────────────────────────────────────────────────────
-const HAX_FW = 820, HAX_FH = 500;
-const HAX_GH = 150, HAX_GD = 32;
-const HAX_GY1 = (HAX_FH - HAX_GH) / 2;   // 175
-const HAX_GY2 = (HAX_FH + HAX_GH) / 2;   // 325
-const HAX_PR = 15, HAX_BR = 11;
+// Field matches open-hax exactly
+const HAX_FW = 860, HAX_FH = 460;
+const HAX_GXL = 30,  HAX_GXR = 830;  // goal mouth x
+const HAX_GY1 = 160, HAX_GY2 = 300;  // goal y range
+const HAX_GD  = 28;                   // net depth
+const HAX_PR = 15, HAX_BR = 10;
 
 // Colors matching casino theme
 const TEAM_COLOR  = { gold: '#e9c349', rose: '#ffb4a8' };
@@ -2765,99 +2770,113 @@ function haxDraw() {
   const cv = document.getElementById('hax-canvas');
   if (!cv) return;
   const ctx = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
+  const W = cv.width, H = cv.height; // 860 × 460
 
-  // Field background
+  // ── Field ────────────────────────────────────────────────────────────────
   ctx.fillStyle = FIELD_BG;
   ctx.fillRect(0, 0, W, H);
 
   // Grass stripes
-  for (let i=0;i<8;i++) {
-    if (i%2===0) { ctx.fillStyle='rgba(0,0,0,0.08)'; ctx.fillRect(i*W/8,0,W/8,H); }
+  for (let i = 0; i < 10; i++) {
+    if (i % 2 === 0) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; ctx.fillRect(i*W/10, 0, W/10, H); }
   }
 
-  // Border
-  ctx.strokeStyle = FIELD_LINE2;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(2, 2, W-4, H-4);
+  // Outer border
+  ctx.strokeStyle = FIELD_LINE2; ctx.lineWidth = 2;
+  ctx.strokeRect(HAX_GXL, 1, HAX_GXR - HAX_GXL, H - 2);
 
   // Center line
-  ctx.strokeStyle = FIELD_LINE;
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = FIELD_LINE; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
 
-  // Center circle
-  ctx.beginPath(); ctx.arc(W/2, H/2, 70, 0, Math.PI*2); ctx.stroke();
-
-  // Center dot
+  // Center circle (open-hax: center 430,230 radius 75)
+  ctx.beginPath(); ctx.arc(W/2, H/2, 75, 0, Math.PI*2); ctx.stroke();
   ctx.fillStyle = FIELD_LINE2;
   ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
 
-  // Goal areas
-  const gy1 = HAX_GY1, gy2 = HAX_GY2;
-  ctx.fillStyle = 'rgba(233,195,73,0.07)';
-  ctx.fillRect(0, gy1, HAX_GD, gy2-gy1);
+  // ── Goals (open-hax: x=30/830, y=160-300) ────────────────────────────────
+  const gy1 = HAX_GY1, gy2 = HAX_GY2, gd = HAX_GD;
+
+  // Left net (gold team's goal — rose attacks it)
+  ctx.fillStyle = 'rgba(255,180,168,0.08)';
+  ctx.fillRect(HAX_GXL - gd, gy1, gd, gy2 - gy1);
+  ctx.strokeStyle = TEAM_COLOR.rose; ctx.lineWidth = 1.5;
+  // back wall
+  ctx.beginPath(); ctx.moveTo(HAX_GXL - gd, gy1); ctx.lineTo(HAX_GXL - gd, gy2); ctx.stroke();
+  // top bar
+  ctx.beginPath(); ctx.moveTo(HAX_GXL - gd, gy1); ctx.lineTo(HAX_GXL, gy1); ctx.stroke();
+  // bottom bar
+  ctx.beginPath(); ctx.moveTo(HAX_GXL - gd, gy2); ctx.lineTo(HAX_GXL, gy2); ctx.stroke();
+
+  // Right net (rose team's goal — gold attacks it)
+  ctx.fillStyle = 'rgba(233,195,73,0.08)';
+  ctx.fillRect(HAX_GXR, gy1, gd, gy2 - gy1);
   ctx.strokeStyle = TEAM_COLOR.gold; ctx.lineWidth = 1.5;
-  ctx.strokeRect(0, gy1, HAX_GD, gy2-gy1);
+  ctx.beginPath(); ctx.moveTo(HAX_GXR + gd, gy1); ctx.lineTo(HAX_GXR + gd, gy2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(HAX_GXR, gy1); ctx.lineTo(HAX_GXR + gd, gy1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(HAX_GXR, gy2); ctx.lineTo(HAX_GXR + gd, gy2); ctx.stroke();
 
-  ctx.fillStyle = 'rgba(255,180,168,0.07)';
-  ctx.fillRect(W-HAX_GD, gy1, HAX_GD, gy2-gy1);
-  ctx.strokeStyle = TEAM_COLOR.rose;
-  ctx.strokeRect(W-HAX_GD, gy1, HAX_GD, gy2-gy1);
-
-  // Goal posts
-  [[0,gy1],[0,gy2],[W,gy1],[W,gy2]].forEach(([px,py]) => {
-    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2);
+  // Goal posts — open-hax discs at (30,160),(30,300),(830,160),(830,300)
+  [[HAX_GXL,gy1],[HAX_GXL,gy2],[HAX_GXR,gy1],[HAX_GXR,gy2]].forEach(([px,py]) => {
+    ctx.beginPath(); ctx.arc(px, py, 7.5, 0, Math.PI*2);
     ctx.fillStyle = '#e9c349'; ctx.fill();
     ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
   });
 
+  // Team labels on goals
+  ctx.font = `bold 9px 'Space Grotesk',sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = TEAM_COLOR.rose + 'aa';
+  ctx.fillText('RÓŻOWI', HAX_GXL - gd/2, gy1 - 10);
+  ctx.fillStyle = TEAM_COLOR.gold + 'aa';
+  ctx.fillText('ZŁOCI', HAX_GXR + gd/2, gy1 - 10);
+
   if (!haxState) return;
 
-  // Players
-  for (const p of (haxState.players||[])) {
+  // ── Players ───────────────────────────────────────────────────────────────
+  ctx.textBaseline = 'bottom';
+  for (const p of (haxState.players || [])) {
     const isMe = p.id === haxMyId;
-    const col  = TEAM_COLOR[p.team] || '#fff';
-    const glow = TEAM_GLOW[p.team]  || 'rgba(255,255,255,0.3)';
+    const col  = TEAM_COLOR[p.team]  || '#fff';
+    const glow = TEAM_GLOW[p.team]   || 'rgba(255,255,255,0.3)';
 
-    if (isMe) {
-      ctx.shadowColor = glow; ctx.shadowBlur = 18;
-    }
+    // Glow for self
+    if (isMe) { ctx.shadowColor = glow; ctx.shadowBlur = 20; }
 
-    const gr = ctx.createRadialGradient(p.x-4, p.y-4, 2, p.x, p.y, HAX_PR);
+    const gr = ctx.createRadialGradient(p.x - 4, p.y - 4, 2, p.x, p.y, HAX_PR);
     gr.addColorStop(0, '#fff');
     gr.addColorStop(0.4, col);
-    gr.addColorStop(1, col+'99');
+    gr.addColorStop(1, col + '88');
     ctx.beginPath(); ctx.arc(p.x, p.y, HAX_PR, 0, Math.PI*2);
     ctx.fillStyle = gr; ctx.fill();
     ctx.strokeStyle = isMe ? '#fff' : col;
-    ctx.lineWidth = isMe ? 2.5 : 1.5;
-    ctx.stroke();
+    ctx.lineWidth = isMe ? 2.5 : 1.5; ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Name
+    // Name tag
     ctx.fillStyle = '#fff';
     ctx.font = `bold 10px 'Space Grotesk',sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'center';
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
-    ctx.fillText(p.name.slice(0,10), p.x, p.y - HAX_PR - 3);
+    ctx.fillText((p.name || '?').slice(0, 10), p.x, p.y - HAX_PR - 3);
     ctx.shadowBlur = 0;
   }
 
-  // Ball
+  // ── Ball ──────────────────────────────────────────────────────────────────
   const b = haxState.ball || { x: W/2, y: H/2 };
-  ctx.shadowColor = 'rgba(255,255,255,0.4)'; ctx.shadowBlur = 10;
-  const bg = ctx.createRadialGradient(b.x-3, b.y-3, 1, b.x, b.y, HAX_BR);
-  bg.addColorStop(0,'#ffffff'); bg.addColorStop(0.6,'#e0e0e0'); bg.addColorStop(1,'#aaaaaa');
+  ctx.shadowColor = 'rgba(255,255,255,0.5)'; ctx.shadowBlur = 12;
+  const bg = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, HAX_BR);
+  bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.6, '#e0e0e0'); bg.addColorStop(1, '#aaaaaa');
   ctx.beginPath(); ctx.arc(b.x, b.y, HAX_BR, 0, Math.PI*2);
   ctx.fillStyle = bg; ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
   ctx.shadowBlur = 0;
 }
 
 // ─── Keyboard input ───────────────────────────────────────────────────────────
 const HAX_KEYMAP = { ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',
-  w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right' };
+  w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right',
+  x:'kick',X:'kick',' ':'kick' };
 
 function haxOnKD(e) {
   const dir = HAX_KEYMAP[e.key];

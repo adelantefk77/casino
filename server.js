@@ -601,34 +601,57 @@ function checkRoomAfterLeave(roomId) {
   }
 }
 
-// ─── HaxBall constants ────────────────────────────────────────────────────────
-const FW = 820, FH = 500;                     // field size
-const GH = 150, GD = 32;                      // goal height, depth
-const GY1 = (FH - GH) / 2;                   // goal top y = 175
-const GY2 = (FH + GH) / 2;                   // goal bottom y = 325
-const PR = 15, PM = 2.5, PA = 0.48, PMS = 6.5, PF = 0.82;   // player physics
-const BR = 11, BM = 1,   BF = 0.988, BB = 0.74;             // ball physics
+// ─── HaxBall — mechanics based on open-hax (erasmo-marin/open-hax) ────────────
+// Field matches open-hax: 860x460, goals x=30/830, y=160-300
+const FW = 860, FH = 460;
+const GOAL_XL = 30,  GOAL_XR = 830;   // goal mouth x positions
+const GOAL_Y1 = 160, GOAL_Y2 = 300;   // goal y range (height=140)
+const GOAL_DEPTH = 28;                 // net depth
+
+// Player physics (translated from Phaser P2.js: thrust=250, damping=0.8, maxV=10)
+const PR  = 15;    // player radius (px)
+const PM  = 1;     // player mass
+const PF  = 0.973; // per-frame velocity decay: (1-0.8)^(1/60) ≈ 0.9726
+const PA  = 4.17;  // acceleration per frame: thrust(250)/60fps
+const PMS = 10;    // max speed (open-hax: 10)
+
+// Ball physics (P2.js: mass=0.8, damping=0.4, restitution player=0.1, wall=0.9)
+const BR  = 10;    // ball radius
+const BM  = 0.8;   // ball mass
+const BF  = 0.992; // per-frame friction: (1-0.4)^(1/60) ≈ 0.9922
+const BWB = 0.75;  // ball-wall restitution (open-hax field restitution=0.9, dampened)
+const BPB = 0.1;   // ball-player restitution (open-hax: 0.1 — very soft)
+const B_MAX_SPEED = 26;
+
+// Kick mechanic (open-hax: X key, force=4000)
+// 4000 force / 60fps / mass 0.8 ≈ 83 units/frame → capped, so use direct velocity
+const KICK_V     = 18;   // velocity added to ball on kick
+const KICK_RANGE = PR + BR + 4;
+const KICK_CD    = 20;   // frames cooldown between kicks
+
 const HAX_GOAL_LIMIT = 5;
 const HAX_TIME_LIMIT = 180;
 const HAX_ROOMS_COUNT = 3;
-const HAX_BOT_ROOMS_COUNT = 3;   // rooms 4,5,6
-const HAX_BOT_NAMES = ['Robo Rosa 🤖','Robo Striker 🤖','Robo Keeper 🤖'];
+const HAX_BOT_ROOMS_COUNT = 3;
+const HAX_BOT_NAMES = ['Robo Rosa 🤖', 'Robo Striker 🤖', 'Robo Keeper 🤖'];
 
 const haxRooms = {};
 for (let i = 1; i <= HAX_ROOMS_COUNT; i++) {
-  haxRooms[i] = { id: i, isBot: false, players: [], ball: null, score: { gold: 0, rose: 0 },
-    state: 'waiting', loop: null, tick: 0, startTs: 0, gcool: 0 };
+  haxRooms[i] = { id: i, isBot: false, players: [], ball: null,
+    score: { gold: 0, rose: 0 }, state: 'waiting',
+    loop: null, tick: 0, startTs: 0, gcool: 0 };
 }
 for (let i = HAX_ROOMS_COUNT + 1; i <= HAX_ROOMS_COUNT + HAX_BOT_ROOMS_COUNT; i++) {
-  haxRooms[i] = { id: i, isBot: true, players: [], ball: null, score: { gold: 0, rose: 0 },
-    state: 'waiting', loop: null, tick: 0, startTs: 0, gcool: 0 };
+  haxRooms[i] = { id: i, isBot: true, players: [], ball: null,
+    score: { gold: 0, rose: 0 }, state: 'waiting',
+    loop: null, tick: 0, startTs: 0, gcool: 0 };
   haxSeedBots(i);
 }
 
 function haxMakeBot(rid, idx) {
   return { id: `hbot-${rid}-${idx}`, name: HAX_BOT_NAMES[idx % HAX_BOT_NAMES.length],
-    team: 'rose', x: FW*0.72, y: FH/2 + (idx-0.5)*60,
-    vx: 0, vy: 0, keys: {}, isBot: true };
+    team: 'rose', x: GOAL_XR - 80, y: FH/2 + (idx - 0.5) * 70,
+    vx: 0, vy: 0, keys: {}, kickCooldown: 0, isBot: true };
 }
 
 function haxSeedBots(rid) {
@@ -637,34 +660,46 @@ function haxSeedBots(rid) {
   for (let i = 0; i < 2; i++) r.players.push(haxMakeBot(rid, i));
 }
 
-// Bot AI — rose bots attack left goal (rose scores when ball in left net x<0)
+// Bot AI: rose team attacks left goal (x < GOAL_XL)
+// Strategy: get behind ball (to ball's right) and kick left toward goal
 function haxBotAI(bot, ball, idx) {
-  // Bot 0 = striker (aggressive), Bot 1 = midfielder (moderate)
-  const aggression = idx === 0 ? 1.0 : 0.7;
+  const dx = ball.x - bot.x;
+  const dy = ball.y - bot.y;
+  const dist = Math.hypot(dx, dy);
+  const isStriker = idx === 0;
 
-  // Approach from right side of ball to push it left
-  const distToBall = Math.hypot(ball.x - bot.x, ball.y - bot.y);
+  // Target position: approach ball from the right to push it left
   let tx, ty;
-
-  if (distToBall < 100 * aggression) {
-    // Rush ball directly
-    tx = ball.x + 5;            // slightly to the right so we push left
+  if (dist < KICK_RANGE + 5) {
+    // On top of ball — kick toward left goal
+    tx = ball.x;
+    ty = ball.y;
+  } else if (dist < 120) {
+    // Close: move directly to ball
+    tx = ball.x + (isStriker ? 8 : 15);
     ty = ball.y;
   } else {
-    // Position to the right of the ball, matching y
-    tx = ball.x + 35;
-    ty = ball.y + (bot.y - ball.y) * 0.3;
+    // Far: position to ball's right side
+    tx = ball.x + 40;
+    ty = ball.y + (bot.y - ball.y) * 0.2;
   }
 
-  // Small per-tick randomness so bots don't stack perfectly
-  tx += (Math.random() - 0.5) * 12;
-  ty += (Math.random() - 0.5) * 12;
+  // Defender (idx=1): also cover own goal
+  if (!isStriker && ball.x > FW * 0.6) {
+    tx = GOAL_XR - 60;
+    ty = FH / 2;
+  }
 
+  tx += (Math.random() - 0.5) * 10;
+  ty += (Math.random() - 0.5) * 10;
+
+  const kick = dist < KICK_RANGE + 2;
   return {
-    left:  bot.x > tx + 7,
-    right: bot.x < tx - 7,
-    up:    bot.y > ty + 7,
-    down:  bot.y < ty - 7,
+    left:  bot.x > tx + 6,
+    right: bot.x < tx - 6,
+    up:    bot.y > ty + 6,
+    down:  bot.y < ty - 6,
+    kick,
   };
 }
 
@@ -673,8 +708,9 @@ function haxBallObj() { return { x: FW/2, y: FH/2, vx: 0, vy: 0 }; }
 function haxSpawn(room) {
   const gold = room.players.filter(p => p.team === 'gold');
   const rose = room.players.filter(p => p.team === 'rose');
-  gold.forEach((p, i) => { p.x = FW*0.28; p.y = FH/2 + (i - (gold.length-1)/2)*60; p.vx=0; p.vy=0; });
-  rose.forEach((p, i) => { p.x = FW*0.72; p.y = FH/2 + (i - (rose.length-1)/2)*60; p.vx=0; p.vy=0; });
+  // Gold spawns left (attacking right), rose spawns right (attacking left)
+  gold.forEach((p, i) => { p.x = GOAL_XL + 90; p.y = FH/2 + (i-(gold.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
+  rose.forEach((p, i) => { p.x = GOAL_XR - 90; p.y = FH/2 + (i-(rose.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
   room.ball = haxBallObj();
 }
 
@@ -685,7 +721,7 @@ function haxStart(rid) {
   r.startTs = Date.now(); r.tick = 0; r.gcool = 0;
   haxSpawn(r);
   io.to(`hax:${rid}`).emit('hax:start', { score: r.score });
-  r.loop = setInterval(() => haxTick(rid), 1000/60);
+  r.loop = setInterval(() => haxTick(rid), 1000 / 60);
 }
 
 function haxStop(rid) {
@@ -699,74 +735,113 @@ function haxTick(rid) {
   r.tick++;
   if (r.gcool > 0) { r.gcool--; if (r.tick % 2 === 0) haxBcast(rid); return; }
 
-  // Update bot keys (every 4 ticks ≈ 15fps to save CPU)
-  if (r.isBot && r.ball && r.tick % 4 === 0) {
+  // Bot AI (every 3 ticks ≈ 20fps)
+  if (r.isBot && r.ball && r.tick % 3 === 0) {
     r.players.filter(p => p.isBot).forEach((bot, idx) => {
       bot.keys = haxBotAI(bot, r.ball, idx);
     });
   }
 
-  // Move players
+  const b = r.ball;
+
+  // ── Players ───────────────────────────────────────────────────────────────
   for (const p of r.players) {
     const k = p.keys || {};
+
+    // Movement (Phaser P2 thrust model)
     let ax = 0, ay = 0;
     if (k.up)    ay -= PA;
     if (k.down)  ay += PA;
     if (k.left)  ax -= PA;
     if (k.right) ax += PA;
     if (ax && ay) { ax *= 0.707; ay *= 0.707; }
-    p.vx = (p.vx + ax) * PF;
-    p.vy = (p.vy + ay) * PF;
+    p.vx += ax; p.vy += ay;
+    p.vx *= PF; p.vy *= PF;
     const spd = Math.hypot(p.vx, p.vy);
-    if (spd > PMS) { p.vx *= PMS/spd; p.vy *= PMS/spd; }
+    if (spd > PMS) { p.vx *= PMS / spd; p.vy *= PMS / spd; }
     p.x += p.vx; p.y += p.vy;
-    if (p.y < PR)       { p.y = PR;       p.vy =  Math.abs(p.vy) * 0.5; }
-    if (p.y > FH - PR)  { p.y = FH - PR;  p.vy = -Math.abs(p.vy) * 0.5; }
-    if (p.x < PR)       { p.x = PR;       p.vx =  Math.abs(p.vx) * 0.5; }
-    if (p.x > FW - PR)  { p.x = FW - PR;  p.vx = -Math.abs(p.vx) * 0.5; }
+
+    // Wall clamp — players stay inside field (not in nets)
+    if (p.y < PR)       { p.y = PR;       p.vy =  Math.abs(p.vy) * 0.3; }
+    if (p.y > FH - PR)  { p.y = FH - PR;  p.vy = -Math.abs(p.vy) * 0.3; }
+    if (p.x < PR)       { p.x = PR;       p.vx =  Math.abs(p.vx) * 0.3; }
+    if (p.x > FW - PR)  { p.x = FW - PR;  p.vx = -Math.abs(p.vx) * 0.3; }
+
+    // Kick mechanic (open-hax: X key, force=4000 on ball)
+    if (p.kickCooldown > 0) p.kickCooldown--;
+    if (k.kick && p.kickCooldown === 0 && b) {
+      const kdx = b.x - p.x, kdy = b.y - p.y;
+      const kd = Math.hypot(kdx, kdy);
+      if (kd < KICK_RANGE && kd > 0.1) {
+        const knx = kdx / kd, kny = kdy / kd;
+        b.vx += knx * KICK_V;
+        b.vy += kny * KICK_V;
+        const bs = Math.hypot(b.vx, b.vy);
+        if (bs > B_MAX_SPEED) { b.vx *= B_MAX_SPEED / bs; b.vy *= B_MAX_SPEED / bs; }
+        p.kickCooldown = KICK_CD;
+      }
+    }
   }
 
-  // Move ball
-  const b = r.ball;
+  // ── Ball ──────────────────────────────────────────────────────────────────
   b.vx *= BF; b.vy *= BF;
-  b.x  += b.vx; b.y += b.vy;
+  b.x  += b.vx; b.y  += b.vy;
 
-  // Ball wall bounces
-  if (b.y < BR)       { b.y = BR;       b.vy =  Math.abs(b.vy) * BB; }
-  if (b.y > FH - BR)  { b.y = FH - BR;  b.vy = -Math.abs(b.vy) * BB; }
+  // Top / bottom walls
+  if (b.y - BR < 0)       { b.y = BR;       b.vy =  Math.abs(b.vy) * BWB; }
+  if (b.y + BR > FH)      { b.y = FH - BR;  b.vy = -Math.abs(b.vy) * BWB; }
 
-  // Left wall (goal opening GY1..GY2)
-  if (b.x - BR < 0) {
-    if (b.y >= GY1 && b.y <= GY2) {
-      if (b.x - BR < -GD) { b.x = -GD + BR; b.vx = Math.abs(b.vx) * BB; }
-    } else { b.x = BR; b.vx = Math.abs(b.vx) * BB; }
+  // Left wall with goal opening (y 160-300)
+  if (b.x - BR < GOAL_XL) {
+    if (b.y >= GOAL_Y1 && b.y <= GOAL_Y2) {
+      // Inside net: bounce off back wall
+      if (b.x - BR < GOAL_XL - GOAL_DEPTH) {
+        b.x = GOAL_XL - GOAL_DEPTH + BR;
+        b.vx = Math.abs(b.vx) * BWB;
+      }
+    } else {
+      b.x = GOAL_XL + BR;
+      b.vx = Math.abs(b.vx) * BWB;
+    }
   }
-  // Right wall
-  if (b.x + BR > FW) {
-    if (b.y >= GY1 && b.y <= GY2) {
-      if (b.x + BR > FW + GD) { b.x = FW + GD - BR; b.vx = -Math.abs(b.vx) * BB; }
-    } else { b.x = FW - BR; b.vx = -Math.abs(b.vx) * BB; }
+
+  // Right wall with goal opening
+  if (b.x + BR > GOAL_XR) {
+    if (b.y >= GOAL_Y1 && b.y <= GOAL_Y2) {
+      if (b.x + BR > GOAL_XR + GOAL_DEPTH) {
+        b.x = GOAL_XR + GOAL_DEPTH - BR;
+        b.vx = -Math.abs(b.vx) * BWB;
+      }
+    } else {
+      b.x = GOAL_XR - BR;
+      b.vx = -Math.abs(b.vx) * BWB;
+    }
   }
 
-  // Goal post bounces
-  haxPost(b, 0,  GY1); haxPost(b, 0,  GY2);
-  haxPost(b, FW, GY1); haxPost(b, FW, GY2);
+  // Goal posts (open-hax disc positions)
+  haxPost(b, GOAL_XL, GOAL_Y1);
+  haxPost(b, GOAL_XL, GOAL_Y2);
+  haxPost(b, GOAL_XR, GOAL_Y1);
+  haxPost(b, GOAL_XR, GOAL_Y2);
 
-  // Collisions
-  for (const p of r.players) haxResolve(p, PR, PM, b, BR, BM, 0.8);
+  // Player–ball collisions (low restitution = 0.1 like open-hax)
+  for (const p of r.players) haxResolve(p, PR, PM, b, BR, BM, BPB);
+
+  // Player–player collisions
   for (let i = 0; i < r.players.length; i++)
-    for (let j = i+1; j < r.players.length; j++)
-      haxResolve(r.players[i], PR, PM, r.players[j], PR, PM, 0.5);
+    for (let j = i + 1; j < r.players.length; j++)
+      haxResolve(r.players[i], PR, PM, r.players[j], PR, PM, 0.85);
 
   // Cap ball speed
   const bspd = Math.hypot(b.vx, b.vy);
-  if (bspd > 20) { b.vx *= 20/bspd; b.vy *= 20/bspd; }
+  if (bspd > B_MAX_SPEED) { b.vx *= B_MAX_SPEED / bspd; b.vy *= B_MAX_SPEED / bspd; }
 
-  // Goal check
-  const inY = b.y >= GY1 && b.y <= GY2;
+  // ── Goal detection ────────────────────────────────────────────────────────
+  const inY = b.y >= GOAL_Y1 && b.y <= GOAL_Y2;
   let goal = null;
-  if (inY && b.x - BR < -GD * 0.6)      goal = 'rose';  // ball in left net → rose scores
-  else if (inY && b.x + BR > FW + GD * 0.6) goal = 'gold'; // ball in right net → gold scores
+  // Ball center past goal line + deep enough in net
+  if (inY && b.x < GOAL_XL - GOAL_DEPTH * 0.4) goal = 'rose'; // rose attacks left goal
+  if (inY && b.x > GOAL_XR + GOAL_DEPTH * 0.4) goal = 'gold'; // gold attacks right goal
 
   if (goal) {
     r.score[goal]++;
@@ -776,15 +851,11 @@ function haxTick(rid) {
       if (r.score[goal] >= HAX_GOAL_LIMIT) {
         haxStop(rid);
         io.to(`hax:${rid}`).emit('hax:gameover', { winner: goal, score: r.score });
-        // Bot rooms: restart immediately after 4s for rematch
         if (r.isBot) setTimeout(() => {
-          if (r.players.some(p => !p.isBot)) {
-            haxSeedBots(rid);
-            haxStart(rid);
-          }
+          if (r.players.some(p => !p.isBot)) { haxSeedBots(rid); haxStart(rid); }
         }, 4000);
       } else {
-        if (r.isBot) haxSeedBots(rid); // re-seed bots (keep positions fresh)
+        if (r.isBot) haxSeedBots(rid);
         haxSpawn(r);
       }
     }, 2000);
@@ -811,29 +882,34 @@ function haxBcast(rid, elapsed) {
   });
 }
 
+// Bounce ball off a goal post disc (open-hax: disc radius=7.5)
 function haxPost(b, px, py) {
   const dx = b.x - px, dy = b.y - py, d = Math.hypot(dx, dy);
-  if (d < BR + 5 && d > 0.001) {
-    const nx = dx/d, ny = dy/d;
-    b.x = px + nx*(BR+5.1); b.y = py + ny*(BR+5.1);
-    const dot = b.vx*nx + b.vy*ny;
-    if (dot < 0) { b.vx -= 2*dot*nx*BB; b.vy -= 2*dot*ny*BB; }
+  const minD = BR + 7.5;
+  if (d < minD && d > 0.001) {
+    const nx = dx / d, ny = dy / d;
+    b.x = px + nx * (minD + 0.1); b.y = py + ny * (minD + 0.1);
+    const dot = b.vx * nx + b.vy * ny;
+    if (dot < 0) { b.vx -= 2 * dot * nx * BWB; b.vy -= 2 * dot * ny * BWB; }
   }
 }
 
-function haxRoster(r) { return r.players.map(p => ({ id:p.id, name:p.name, team:p.team, isBot:!!p.isBot })); }
+function haxRoster(r) {
+  return r.players.map(p => ({ id: p.id, name: p.name, team: p.team, isBot: !!p.isBot }));
+}
 
+// Circle–circle elastic collision
 function haxResolve(a, ra, ma, b, rb, mb, rest) {
-  const dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx,dy), md = ra+rb;
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), md = ra + rb;
   if (d >= md || d < 0.001) return;
-  const nx = dx/d, ny = dy/d, ov = md-d, tm = ma+mb;
-  a.x -= nx*ov*mb/tm; a.y -= ny*ov*mb/tm;
-  b.x += nx*ov*ma/tm; b.y += ny*ov*ma/tm;
-  const rvx = b.vx-a.vx, rvy = b.vy-a.vy, rv = rvx*nx + rvy*ny;
+  const nx = dx / d, ny = dy / d, ov = md - d, tm = ma + mb;
+  a.x -= nx * ov * mb / tm; a.y -= ny * ov * mb / tm;
+  b.x += nx * ov * ma / tm; b.y += ny * ov * ma / tm;
+  const rvx = b.vx - a.vx, rvy = b.vy - a.vy, rv = rvx * nx + rvy * ny;
   if (rv >= 0) return;
-  const j = -(1+rest)*rv/(1/ma+1/mb);
-  a.vx -= j/ma*nx; a.vy -= j/ma*ny;
-  b.vx += j/mb*nx; b.vy += j/mb*ny;
+  const j = -(1 + rest) * rv / (1 / ma + 1 / mb);
+  a.vx -= j / ma * nx; a.vy -= j / ma * ny;
+  b.vx += j / mb * nx; b.vy += j / mb * ny;
 }
 
 // ─── Global chat ──────────────────────────────────────────────────────────────
