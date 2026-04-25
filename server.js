@@ -608,26 +608,26 @@ const GOAL_XL = 30,  GOAL_XR = 830;   // goal mouth x positions
 const GOAL_Y1 = 160, GOAL_Y2 = 300;   // goal y range (height=140)
 const GOAL_DEPTH = 28;                 // net depth
 
-// Player physics (translated from Phaser P2.js: thrust=250, damping=0.8, maxV=10)
-const PR  = 15;    // player radius (px)
+// Player physics — tuned for 860×460 field at 60fps
+// Target feel: player crosses field in ~3s, stops in ~0.5s after key release
+const PR  = 15;    // player radius px (open-hax: 15)
 const PM  = 1;     // player mass
-const PF  = 0.973; // per-frame velocity decay: (1-0.8)^(1/60) ≈ 0.9726
-const PA  = 4.17;  // acceleration per frame: thrust(250)/60fps
-const PMS = 10;    // max speed (open-hax: 10)
+const PA  = 0.55;  // acceleration px/frame when key held
+const PMS = 4.5;   // max speed px/frame (crosses 860px in ~190 frames = 3.2s)
+const PF  = 0.87;  // per-frame friction (stops in ~6 frames after release)
 
-// Ball physics (P2.js: mass=0.8, damping=0.4, restitution player=0.1, wall=0.9)
-const BR  = 10;    // ball radius
-const BM  = 0.8;   // ball mass
-const BF  = 0.992; // per-frame friction: (1-0.4)^(1/60) ≈ 0.9922
-const BWB = 0.75;  // ball-wall restitution (open-hax field restitution=0.9, dampened)
-const BPB = 0.1;   // ball-player restitution (open-hax: 0.1 — very soft)
-const B_MAX_SPEED = 26;
+// Ball physics — open-hax feel: rolls far, soft player bounce, kick is the weapon
+const BR  = 10;    // ball radius px (open-hax: 10)
+const BM  = 0.8;   // ball mass (lighter than player)
+const BF  = 0.984; // per-frame friction — ball slows in ~3s
+const BWB = 0.68;  // wall restitution (slightly lossy)
+const BPB = 0.1;   // player-ball restitution (soft — like open-hax 0.1)
+const B_MAX_SPEED = 18;
 
-// Kick mechanic (open-hax: X key, force=4000)
-// 4000 force / 60fps / mass 0.8 ≈ 83 units/frame → capped, so use direct velocity
-const KICK_V     = 18;   // velocity added to ball on kick
-const KICK_RANGE = PR + BR + 4;
-const KICK_CD    = 20;   // frames cooldown between kicks
+// Kick — open-hax: X key, force 4000 = instant powerful shot
+const KICK_V     = 11;        // px/frame impulse on kick
+const KICK_RANGE = PR + BR + 5;
+const KICK_CD    = 20;        // frames cooldown
 
 const HAX_GOAL_LIMIT = 5;
 const HAX_TIME_LIMIT = 180;
@@ -650,7 +650,7 @@ for (let i = HAX_ROOMS_COUNT + 1; i <= HAX_ROOMS_COUNT + HAX_BOT_ROOMS_COUNT; i+
 
 function haxMakeBot(rid, idx) {
   return { id: `hbot-${rid}-${idx}`, name: HAX_BOT_NAMES[idx % HAX_BOT_NAMES.length],
-    team: 'rose', x: GOAL_XR - 80, y: FH/2 + (idx - 0.5) * 70,
+    team: 'rose', x: FW * 0.70, y: FH/2 + (idx - 0.5) * 70,
     vx: 0, vy: 0, keys: {}, kickCooldown: 0, isBot: true };
 }
 
@@ -709,8 +709,8 @@ function haxSpawn(room) {
   const gold = room.players.filter(p => p.team === 'gold');
   const rose = room.players.filter(p => p.team === 'rose');
   // Gold spawns left (attacking right), rose spawns right (attacking left)
-  gold.forEach((p, i) => { p.x = GOAL_XL + 90; p.y = FH/2 + (i-(gold.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
-  rose.forEach((p, i) => { p.x = GOAL_XR - 90; p.y = FH/2 + (i-(rose.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
+  gold.forEach((p, i) => { p.x = FW*0.30; p.y = FH/2 + (i-(gold.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
+  rose.forEach((p, i) => { p.x = FW*0.70; p.y = FH/2 + (i-(rose.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
   room.ball = haxBallObj();
 }
 
@@ -733,7 +733,7 @@ function haxStop(rid) {
 function haxTick(rid) {
   const r = haxRooms[rid];
   r.tick++;
-  if (r.gcool > 0) { r.gcool--; if (r.tick % 2 === 0) haxBcast(rid); return; }
+  if (r.gcool > 0) { r.gcool--; haxBcast(rid); return; }
 
   // Bot AI (every 3 ticks ≈ 20fps)
   if (r.isBot && r.ball && r.tick % 3 === 0) {
@@ -869,7 +869,7 @@ function haxTick(rid) {
     return;
   }
 
-  if (r.tick % 2 === 0) haxBcast(rid, elapsed);
+  haxBcast(rid, elapsed);
 }
 
 function haxBcast(rid, elapsed) {
