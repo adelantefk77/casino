@@ -805,7 +805,9 @@ io.on('connection', socket => {
         r.state = r.isBot ? 'playing' : 'waiting';
         io.to(`hax:${haxRid}`).emit('hax:gameover', { winner });
       } else {
-        io.to(`hax:${haxRid}`).emit('hax:respawn');
+        // Tell clients which team conceded (they get kickoff)
+      var conceded = scorer === 'gold' ? 'rose' : 'gold';
+      io.to(`hax:${haxRid}`).emit('hax:respawn', { kickoffTeam: conceded });
       }
     }, 2500);
   });

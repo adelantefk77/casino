@@ -970,6 +970,8 @@ tailwind.config = {
       <div id="hax-waiting-overlay" class="absolute inset-0 flex items-center justify-center bg-black/60 rounded">
         <p class="font-label text-xs text-primary uppercase tracking-widest animate-pulse">Czekamy na obie drużyny…</p>
       </div>
+      <!-- Kickoff indicator -->
+      <div id="hax-kickoff-indicator" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);padding:4px 14px;border-radius:2px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;white-space:nowrap;pointer-events:none;"></div>
     </div>
 
     <!-- Mobile touch controls -->
@@ -2574,7 +2576,9 @@ let haxMyTeam    = null;
 let haxPickedRoom = null;
 let haxPickedTeam = null;
 let haxScore     = {gold:0,rose:0};
-let haxGoalLock  = false;
+let haxGoalLock   = false;
+let haxKickoff    = false; // kickoff rule active
+let haxKickoffTeam= null;  // team that conceded (gets to kick off)
 let haxGame      = null;
 let haxPlayerObj = null;
 let haxBallObj   = null;
@@ -2606,8 +2610,10 @@ function haxInitSocket() {
   });
   haxSocket.on('hax:start', function(d) {
     haxScore=d.score; haxUpdateHUD();
+    haxKickoff=false; haxKickoffTeam=null;
     document.getElementById('hax-waiting-overlay').style.display='none';
     document.getElementById('hax-status').textContent='W grze';
+    var ki=document.getElementById('hax-kickoff-indicator'); if(ki) ki.style.display='none';
     haxLaunchWhenReady();
   });
   haxSocket.on('hax:roster', function(players) {
@@ -2632,8 +2638,10 @@ function haxInitSocket() {
     fl.classList.remove('show'); void fl.offsetWidth; fl.classList.add('show');
     setTimeout(function(){fl.classList.remove('show');fl.style.opacity='0';},2200);
   });
-  haxSocket.on('hax:respawn', haxRespawn);
+  haxSocket.on('hax:respawn', function(d){ haxRespawn(d && d.kickoffTeam); });
   haxSocket.on('hax:gameover', function(d) {
+    haxKickoff=false; haxKickoffTeam=null;
+    var ki=document.getElementById('hax-kickoff-indicator'); if(ki) ki.style.display='none';
     haxScore={gold:0,rose:0}; haxUpdateHUD();
     var m={gold:'Złoci wygrali!',rose:'Różowi wygrali!'};
     document.getElementById('hax-status').textContent=m[d.winner]||'Koniec!';
@@ -2796,10 +2804,31 @@ function haxPCreate() {
   G.physics.p2.world.setGlobalStiffness(1e5);
   G._cg=cg; G._mats=mats;
 
-  // Field background
+  // Field background + goal nets drawn directly (generateTexture fails on thin vertical lines)
   var bg=G.add.graphics(0,0);
   bg.beginFill(0x1a3a0a,1); bg.drawRect(0,0,860,460); bg.endFill();
   for(var i=0;i<10;i++){if(i%2===0){bg.beginFill(0x000000,0.06);bg.drawRect(i*86,0,86,460);bg.endFill();}}
+
+  // Left net area (rose team attacks here)
+  bg.lineStyle(0); bg.beginFill(0x000000,0.35); bg.drawRect(0,160,30,140); bg.endFill();
+  // Net diagonal lines
+  bg.lineStyle(1,0xffb4a8,0.25);
+  for(var ny=160;ny<300;ny+=14){bg.moveTo(0,ny);bg.lineTo(30,ny+14);}
+  bg.moveTo(0,160);bg.lineTo(0,300);   // back wall
+  bg.moveTo(0,160);bg.lineTo(30,160); // top bar
+  bg.moveTo(0,300);bg.lineTo(30,300); // bottom bar
+  bg.lineStyle(2,0xffb4a8,0.8);
+  bg.moveTo(30,160);bg.lineTo(30,300); // goal mouth line (rose)
+
+  // Right net area (gold team attacks here)
+  bg.lineStyle(0); bg.beginFill(0x000000,0.35); bg.drawRect(830,160,30,140); bg.endFill();
+  bg.lineStyle(1,0xe9c349,0.25);
+  for(var ny2=160;ny2<300;ny2+=14){bg.moveTo(830,ny2);bg.lineTo(860,ny2+14);}
+  bg.moveTo(860,160);bg.lineTo(860,300);
+  bg.moveTo(830,160);bg.lineTo(860,160);
+  bg.moveTo(830,300);bg.lineTo(860,300);
+  bg.lineStyle(2,0xe9c349,0.8);
+  bg.moveTo(830,160);bg.lineTo(830,300); // goal mouth line (gold)
 
   // Lines — from open-hax game.jsx lines array + line.jsx render()
   HAX_LINES.forEach(function(ln){
@@ -2834,12 +2863,7 @@ function haxPCreate() {
     s.body.collides(col);
   });
 
-  // Goal visual lines (no physics — from open-hax goal.jsx)
-  [{x1:30,y1:160,x2:30,y2:300},{x1:830,y1:160,x2:830,y2:300}].forEach(function(gl){
-    var gfx=new Phaser.Graphics(G,0,0);
-    gfx.moveTo(gl.x1,gl.y1); gfx.lineStyle(2,0xffffff,0.7); gfx.lineTo(gl.x2,gl.y2); gfx.endFill();
-    G.add.sprite((gl.x2-gl.x1)/2+gl.x1,(gl.y2-gl.y1)/2+gl.y1,gfx.generateTexture());
-  });
+  // (goal mouth lines drawn as part of field background above)
 
   // Ball — from open-hax Ball/index.jsx render()
   haxBallObj = haxMakeBall(G,mats.ball,cg);
@@ -2896,6 +2920,7 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
     sprite.body.fixedRotation=true;
     sprite.body.damping=0.8; // open-hax: damping=0.8
     sprite.body.fieldElementType='player';
+    sprite.body.playerTeam=team; // for kickoff rule
     sprite.body.onBeginContact.add(function(cb){
       if(cb&&cb.fieldElementType==='ball'){ballBody=cb;touchingBall=true;}
     });
@@ -2950,8 +2975,8 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
     if(up){      sprite.body.angle=0;   sprite.body.thrust(thrust); }
     else if(dn){ sprite.body.angle=180; sprite.body.thrust(thrust); }
 
-    // Kick mechanic — 1:1 from open-hax Player/index.jsx
-    if(kick&&touchingBall&&ballBody){
+    // Kick mechanic — disabled during opponent's kickoff
+    if(kick&&touchingBall&&ballBody&&haxKickAllowed()){
       var p1=sprite.body, p2=ballBody;
       var a=Math.abs(p1.x-p2.x), b=Math.abs(p1.y-p2.y);
       var alpha=Math.atan(a/b)*(180/3.14159);
@@ -2982,7 +3007,9 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
       var ang=Math.atan2(ddy,ddx)*(180/Math.PI)+90;
       sprite.body.angle=ang; sprite.body.thrust(250);
     }
-    if(touchingBall&&ballBody){
+    // Bots also respect kickoff rule
+    var botCanKick = !haxKickoff || haxKickoffTeam === team;
+    if(touchingBall&&ballBody&&botCanKick){
       var p1=sprite.body, p2=ballBody;
       var a2=Math.abs(p1.x-p2.x), b2=Math.abs(p1.y-p2.y);
       var alpha2=Math.atan(a2/b2)*(180/3.14159);
@@ -3014,6 +3041,29 @@ function haxMakeBall(G,material,cg) {
   sprite.body.damping=0.4; // open-hax: damping=0.4
   sprite.body.mass=0.8;    // open-hax: mass=0.8
   sprite.body.fieldElementType='ball';
+
+  // Kickoff rule: if opposing team touches ball before kickoff team → reset ball
+  sprite.body.onBeginContact.add(function(contactBody) {
+    if (!haxKickoff || !haxIsHost) return;
+    if (!contactBody || !contactBody.playerTeam) return;
+    if (contactBody.playerTeam === haxKickoffTeam) {
+      // Kickoff team touched ball → kickoff over
+      haxKickoff = false;
+      haxKickoffTeam = null;
+      var el=document.getElementById('hax-kickoff-indicator');
+      if(el) el.style.display='none';
+    } else {
+      // Opposing team touched ball → teleport ball back to center
+      setTimeout(function() {
+        if (!haxKickoff || !haxBallObj) return;
+        haxBallObj.sprite.body.x = 430;
+        haxBallObj.sprite.body.y = 230;
+        haxBallObj.sprite.body.velocity.x = 0;
+        haxBallObj.sprite.body.velocity.y = 0;
+      }, 16);
+    }
+  });
+
   var obj={update:function(){}};
   Object.defineProperty(obj,'sprite',{get:function(){return sprite;}});
   return obj;
@@ -3091,20 +3141,41 @@ function haxSyncGhosts(players) {
   });
 }
 
-function haxRespawn() {
+function haxRespawn(kickoffTeam) {
   if(!haxGame||!haxBallObj) return;
+  // Reset ball to center
   haxBallObj.sprite.body.x=430; haxBallObj.sprite.body.y=230;
   haxBallObj.sprite.body.velocity.x=0; haxBallObj.sprite.body.velocity.y=0;
+  // Reset local player
   if(haxPlayerObj&&haxPlayerObj.sprite){
     haxPlayerObj.sprite.body.x=haxMyTeam==='gold'?300:560;
     haxPlayerObj.sprite.body.y=230;
     haxPlayerObj.sprite.body.velocity.x=0; haxPlayerObj.sprite.body.velocity.y=0;
   }
+  // Reset bots
   haxBotObjs.forEach(function(b,i){
     if(!b.sprite) return;
     b.sprite.body.x=600; b.sprite.body.y=180+i*120;
     b.sprite.body.velocity.x=0; b.sprite.body.velocity.y=0;
   });
+  // Activate kickoff rule
+  if(kickoffTeam) {
+    haxKickoff=true;
+    haxKickoffTeam=kickoffTeam;
+    // Show indicator
+    var el=document.getElementById('hax-kickoff-indicator');
+    if(el){
+      el.textContent = kickoffTeam===haxMyTeam ? 'TWÓJ KICKOFF — dotknij piłkę!' : 'Przeciwnik wykonuje kickoff';
+      el.style.color  = kickoffTeam===haxMyTeam ? '#e9c349' : '#ffb4a8';
+      el.style.display='block';
+    }
+  }
+}
+
+// Disable kick during opponent's kickoff
+function haxKickAllowed() {
+  if(!haxKickoff) return true;
+  return haxKickoffTeam === haxMyTeam;
 }
 
 // Mobile touch buttons
