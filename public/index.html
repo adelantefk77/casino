@@ -2551,10 +2551,11 @@ function toggleChat() {
 
 // Field layout from open-hax game.jsx (exact coordinates)
 const HAX_LINES = [
-  {x1:30, y1:30,  x2:830,y2:30,  ball:true, player:false},
+  // Top/bottom: ball:false — world bounds (y=30/430) handle these now
+  {x1:30, y1:30,  x2:830,y2:30,  ball:false,player:false},
   {x1:830,y1:30,  x2:830,y2:160, ball:true, player:false},
   {x1:830,y1:300, x2:830,y2:430, ball:true, player:false},
-  {x1:30, y1:430, x2:830,y2:430, ball:true, player:false},
+  {x1:30, y1:430, x2:830,y2:430, ball:false,player:false},
   {x1:30, y1:30,  x2:30, y2:160, ball:true, player:false},
   {x1:30, y1:300, x2:30, y2:430, ball:true, player:false},
   {x1:429,y1:30,  x2:429,y2:430, ball:false,player:false},
@@ -2579,8 +2580,9 @@ let haxScore     = {gold:0,rose:0};
 let haxGoalLock   = false;
 let haxKickoff    = false; // kickoff rule active
 let haxKickoffTeam= null;  // team that conceded (gets to kick off)
-let haxGame      = null;
-let haxPlayerObj = null;
+let haxGame        = null;
+let haxCenterGfx   = null; // center circle graphics (redrawn on kickoff)
+let haxPlayerObj   = null;
 let haxBallObj   = null;
 let haxGhosts    = {};
 let haxBotObjs   = [];
@@ -2610,11 +2612,11 @@ function haxInitSocket() {
   });
   haxSocket.on('hax:start', function(d) {
     haxScore=d.score; haxUpdateHUD();
-    haxKickoff=false; haxKickoffTeam=null;
     document.getElementById('hax-waiting-overlay').style.display='none';
     document.getElementById('hax-status').textContent='W grze';
-    var ki=document.getElementById('hax-kickoff-indicator'); if(ki) ki.style.display='none';
     haxLaunchWhenReady();
+    // Apply initial kickoff (gold team starts)
+    if (d.kickoffTeam) setTimeout(function(){ haxRespawn(d.kickoffTeam); }, 200);
   });
   haxSocket.on('hax:roster', function(players) {
     haxUpdateRosterUI(players);
@@ -2640,8 +2642,7 @@ function haxInitSocket() {
   });
   haxSocket.on('hax:respawn', function(d){ haxRespawn(d && d.kickoffTeam); });
   haxSocket.on('hax:gameover', function(d) {
-    haxKickoff=false; haxKickoffTeam=null;
-    var ki=document.getElementById('hax-kickoff-indicator'); if(ki) ki.style.display='none';
+    haxClearKickoff();
     haxScore={gold:0,rose:0}; haxUpdateHUD();
     var m={gold:'Złoci wygrali!',rose:'Różowi wygrali!'};
     document.getElementById('hax-status').textContent=m[d.winner]||'Koniec!';
@@ -2760,8 +2761,10 @@ function haxCreateGame() {
 // Phaser create — mirrors open-hax game.jsx create() exactly
 function haxPCreate() {
   var G=haxGame;
-  G.stage.backgroundColor='#1a3a0a'; // dark green casino twist on open-hax #5F7B48
-  G.world.setBounds(0,0,860,460);
+  G.stage.backgroundColor='#1a3a0a';
+  // World bounds match field lines (y=30..430) so ball can't escape above/below.
+  // X bounds 0..860 act as goal back walls (ball bounces inside net).
+  G.world.setBounds(0,30,860,400);
   G.physics.startSystem(Phaser.Physics.P2JS);
   G.physics.p2.setImpactEvents(true);
   G.physics.p2.restitution=0.75;
@@ -2845,10 +2848,9 @@ function haxPCreate() {
     s.body.setMaterial(mats.field);
   });
 
-  // Center circle — from open-hax circles array (visual)
-  var cgfx=new Phaser.Graphics(G,0,0);
-  cgfx.lineStyle(2,0xffffff,0.4); cgfx.drawCircle(0,0,150); cgfx.endFill();
-  var cs=G.add.sprite(860/2,460/2,cgfx.generateTexture()); cs.anchor.set(0.5);
+  // Center circle — saved to haxCenterGfx so we can redraw during kickoff
+  haxCenterGfx = G.add.graphics(860/2, 460/2);
+  haxDrawCenterCircle(false);
 
   // Discs (goal posts) — from open-hax disc.jsx render()
   HAX_DISCS.forEach(function(disc){
@@ -3048,10 +3050,7 @@ function haxMakeBall(G,material,cg) {
     if (!contactBody || !contactBody.playerTeam) return;
     if (contactBody.playerTeam === haxKickoffTeam) {
       // Kickoff team touched ball → kickoff over
-      haxKickoff = false;
-      haxKickoffTeam = null;
-      var el=document.getElementById('hax-kickoff-indicator');
-      if(el) el.style.display='none';
+      haxClearKickoff();
     } else {
       // Opposing team touched ball → teleport ball back to center
       setTimeout(function() {
@@ -3103,6 +3102,25 @@ function haxPUpdate() {
     });
   }
 
+  // Kickoff center circle enforcement — push opposing team players out
+  if (haxKickoff) {
+    var CX=430, CY=230, CR=75; // circle radius 75 (diameter 150)
+    function pushOut(sp, spTeam) {
+      if (!sp || !sp.body) return;
+      if (spTeam === haxKickoffTeam) return; // kickoff team free
+      var dx=sp.x-CX, dy=sp.y-CY, d=Math.hypot(dx,dy)||1;
+      if (d < CR+15) {
+        var push=((CR+15)-d)*10;
+        sp.body.velocity.x += (dx/d)*push;
+        sp.body.velocity.y += (dy/d)*push;
+        // Hard clamp position so they can't slip in
+        if (d < CR) { sp.body.x=CX+(dx/d)*(CR+16); sp.body.y=CY+(dy/d)*(CR+16); }
+      }
+    }
+    if (haxPlayerObj) pushOut(haxPlayerObj.sprite, haxMyTeam);
+    haxBotObjs.forEach(function(b){ pushOut(b.sprite, 'rose'); });
+  }
+
   // Goal detection (host only) — ball x position like open-hax
   if(haxIsHost&&haxBallObj&&haxBallObj.sprite&&!haxGoalLock){
     var bx=haxBallObj.sprite.x, by=haxBallObj.sprite.y;
@@ -3115,6 +3133,26 @@ function haxPUpdate() {
       haxSocket.emit('hax:goal',{scorer:'gold'});
       setTimeout(function(){haxGoalLock=false;},3000);
     }
+  }
+}
+
+// Center circle drawing — normal vs kickoff mode
+function haxDrawCenterCircle(kickoffActive, kickoffTeam) {
+  if (!haxCenterGfx) return;
+  haxCenterGfx.clear();
+  if (kickoffActive) {
+    // Thick colored ring showing barrier
+    var col = kickoffTeam === 'gold' ? 0xe9c349 : 0xffb4a8;
+    haxCenterGfx.lineStyle(4, col, 0.85);
+    haxCenterGfx.drawCircle(0, 0, 150);
+    // Soft fill
+    haxCenterGfx.beginFill(col, 0.07);
+    haxCenterGfx.drawCircle(0, 0, 150);
+    haxCenterGfx.endFill();
+  } else {
+    haxCenterGfx.lineStyle(2, 0xffffff, 0.4);
+    haxCenterGfx.drawCircle(0, 0, 150);
+    haxCenterGfx.endFill();
   }
 }
 
@@ -3162,7 +3200,7 @@ function haxRespawn(kickoffTeam) {
   if(kickoffTeam) {
     haxKickoff=true;
     haxKickoffTeam=kickoffTeam;
-    // Show indicator
+    haxDrawCenterCircle(true, kickoffTeam);
     var el=document.getElementById('hax-kickoff-indicator');
     if(el){
       el.textContent = kickoffTeam===haxMyTeam ? 'TWÓJ KICKOFF — dotknij piłkę!' : 'Przeciwnik wykonuje kickoff';
@@ -3170,6 +3208,12 @@ function haxRespawn(kickoffTeam) {
       el.style.display='block';
     }
   }
+}
+
+function haxClearKickoff() {
+  haxKickoff=false; haxKickoffTeam=null;
+  haxDrawCenterCircle(false);
+  var el=document.getElementById('hax-kickoff-indicator'); if(el) el.style.display='none';
 }
 
 // Disable kick during opponent's kickoff

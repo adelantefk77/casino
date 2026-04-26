@@ -770,7 +770,7 @@ io.on('connection', socket => {
       setTimeout(() => {
         if (r.state === 'waiting' && ready()) {
           r.state = 'playing';
-          io.to(`hax:${roomId}`).emit('hax:start', { score: r.score });
+          io.to(`hax:${roomId}`).emit('hax:start', { score: r.score, kickoffTeam: 'gold' });
         }
       }, r.isBot ? 1500 : 3000);
     }
