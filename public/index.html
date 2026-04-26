@@ -2576,8 +2576,11 @@ let haxIsBotRoom = false;
 let haxMyTeam    = null;
 let haxPickedRoom = null;
 let haxPickedTeam = null;
-let haxScore     = {gold:0,rose:0};
+let haxScore      = {gold:0,rose:0};
 let haxGoalLock   = false;
+let haxTimeLeft   = 180;
+let haxTimerInt   = null;
+let haxTimerRun   = false;
 let haxKickoff    = false; // kickoff rule active
 let haxKickoffTeam= null;  // team that conceded (gets to kick off)
 let haxGame        = null;
@@ -2615,8 +2618,8 @@ function haxInitSocket() {
     haxScore=d.score; haxUpdateHUD();
     document.getElementById('hax-waiting-overlay').style.display='none';
     document.getElementById('hax-status').textContent='W grze';
+    haxStartTimer();
     haxLaunchWhenReady();
-    // Apply initial kickoff (gold team starts)
     if (d.kickoffTeam) setTimeout(function(){ haxRespawn(d.kickoffTeam); }, 200);
   });
   haxSocket.on('hax:roster', function(players) {
@@ -2653,6 +2656,7 @@ function haxInitSocket() {
       ov.querySelector('p').textContent = (d.scorer==='gold'?'⚽ ZŁOCI STRZELAJĄ!':'⚽ RÓŻOWI STRZELAJĄ!')+' ('+d.score.gold+' : '+d.score.rose+')';
     }
 
+    haxTimerRun=false; // pause timer during goal celebration
     var fl=document.getElementById('hax-goal-flash');
     var tx=document.getElementById('hax-goal-text');
     tx.textContent = d.scorer==='gold'?'⚽ ZŁOCI STRZELAJĄ!':'⚽ RÓŻOWI STRZELAJĄ!';
@@ -2661,15 +2665,18 @@ function haxInitSocket() {
     setTimeout(function(){fl.classList.remove('show');fl.style.opacity='0';},2200);
   });
   haxSocket.on('hax:respawn', function(d){
-    haxGoalLock=false; // release lock — respawn means server confirmed the goal
+    haxGoalLock=false;
+    haxTimerRun=true; // resume timer after respawn
     var ov=document.getElementById('hax-waiting-overlay');
     if(ov) ov.style.display='none';
     haxRespawn(d && d.kickoffTeam);
   });
   haxSocket.on('hax:gameover', function(d) {
     haxGoalLock=false;
+    haxStopTimer();
     haxClearKickoff();
     haxScore={gold:0,rose:0}; haxUpdateHUD();
+    var el=document.getElementById('hax-time'); if(el){el.textContent='3:00';el.style.color='';}
     var m={gold:'Złoci wygrali!',rose:'Różowi wygrali!'};
     document.getElementById('hax-status').textContent=m[d.winner]||'Koniec!';
     showToast(m[d.winner]||'Koniec!');
@@ -2778,9 +2785,35 @@ function haxDestroyGame() {
   if (haxGame) { haxGame.destroy(); haxGame=null; }
   haxPlayerObj=null; haxBallObj=null; haxCenterGfx=null;
   haxGhosts={}; haxBotObjs=[]; haxChilds=[];
-  // CRITICAL: reset locks so they don't carry over to the next game
   haxGoalLock=false; haxKickoff=false; haxKickoffTeam=null;
+  haxStopTimer();
   var ki=document.getElementById('hax-kickoff-indicator'); if(ki) ki.style.display='none';
+}
+
+function haxStartTimer() {
+  haxTimeLeft=180; haxTimerRun=true;
+  haxUpdateTimer();
+  if(haxTimerInt) clearInterval(haxTimerInt);
+  haxTimerInt=setInterval(function(){
+    if(!haxTimerRun) return;
+    haxTimeLeft--;
+    haxUpdateTimer();
+    if(haxTimeLeft<=0){
+      haxStopTimer();
+      if(haxIsHost&&haxSocket) haxSocket.emit('hax:timeout');
+    }
+  },1000);
+}
+function haxStopTimer(){
+  haxTimerRun=false;
+  if(haxTimerInt){clearInterval(haxTimerInt);haxTimerInt=null;}
+}
+function haxUpdateTimer(){
+  var el=document.getElementById('hax-time');
+  if(!el) return;
+  var m=Math.floor(haxTimeLeft/60), s=haxTimeLeft%60;
+  el.textContent=m+':'+(s<10?'0':'')+s;
+  el.style.color = haxTimeLeft<=30?'#ffb4a8':'';
 }
 function haxCreateGame() {
   var wrap=document.getElementById('hax-phaser-container');

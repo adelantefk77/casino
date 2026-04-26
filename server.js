@@ -603,7 +603,7 @@ function checkRoomAfterLeave(roomId) {
 
 // ─── HaxBall — pure Socket.io relay (physics = Phaser 2 P2.js client-side) ──
 // Matches open-hax architecture: server is only a message relay, no physics.
-const HAX_ROOMS = 3, HAX_BOT_ROOMS = 3, HAX_GOAL_LIMIT = 5;
+const HAX_ROOMS = 3, HAX_BOT_ROOMS = 3, HAX_GOAL_LIMIT = 3;
 const haxRooms = {};
 for (let i = 1; i <= HAX_ROOMS + HAX_BOT_ROOMS; i++) {
   haxRooms[i] = {
@@ -780,6 +780,20 @@ io.on('connection', socket => {
   socket.on('hax:pos', data => {
     if (!haxRid) return;
     socket.to(`hax:${haxRid}`).emit('hax:pos', { id: socket.id, ...data });
+  });
+
+  // Host reports time expired
+  socket.on('hax:timeout', () => {
+    if (!haxRid) return;
+    const r = haxRooms[haxRid];
+    if (!r || r.host !== socket.id || r.goalLock) return;
+    r.goalLock = true;
+    const winner = r.score.gold > r.score.rose ? 'gold'
+                 : r.score.rose > r.score.gold  ? 'rose' : 'draw';
+    r.score = {gold:0, rose:0};
+    r.state = r.isBot ? 'playing' : 'waiting';
+    io.to(`hax:${haxRid}`).emit('hax:gameover', { winner });
+    setTimeout(() => { r.goalLock = false; }, 3000);
   });
 
   // Host relays ball position to non-hosts
