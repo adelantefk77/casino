@@ -601,320 +601,22 @@ function checkRoomAfterLeave(roomId) {
   }
 }
 
-// ─── HaxBall — mechanics based on open-hax (erasmo-marin/open-hax) ────────────
-// Field matches open-hax: 860x460, goals x=30/830, y=160-300
-const FW = 860, FH = 460;
-const GOAL_XL = 30,  GOAL_XR = 830;   // goal mouth x positions
-const GOAL_Y1 = 160, GOAL_Y2 = 300;   // goal y range (height=140)
-const GOAL_DEPTH = 28;                 // net depth
-
-// Player physics — tuned for 860×460 field at 60fps
-// Target feel: player crosses field in ~3s, stops in ~0.5s after key release
-const PR  = 15;    // player radius px (open-hax: 15)
-const PM  = 1;     // player mass
-const PA  = 0.55;  // acceleration px/frame when key held
-const PMS = 4.5;   // max speed px/frame (crosses 860px in ~190 frames = 3.2s)
-const PF  = 0.87;  // per-frame friction (stops in ~6 frames after release)
-
-// Ball physics — open-hax feel: rolls far, soft player bounce, kick is the weapon
-const BR  = 10;    // ball radius px (open-hax: 10)
-const BM  = 0.8;   // ball mass (lighter than player)
-const BF  = 0.984; // per-frame friction — ball slows in ~3s
-const BWB = 0.68;  // wall restitution (slightly lossy)
-const BPB = 0.1;   // player-ball restitution (soft — like open-hax 0.1)
-const B_MAX_SPEED = 18;
-
-// Kick — open-hax: X key, force 4000 = instant powerful shot
-const KICK_V     = 11;        // px/frame impulse on kick
-const KICK_RANGE = PR + BR + 5;
-const KICK_CD    = 20;        // frames cooldown
-
-const HAX_GOAL_LIMIT = 5;
-const HAX_TIME_LIMIT = 180;
-const HAX_ROOMS_COUNT = 3;
-const HAX_BOT_ROOMS_COUNT = 3;
-const HAX_BOT_NAMES = ['Robo Rosa 🤖', 'Robo Striker 🤖', 'Robo Keeper 🤖'];
-
+// ─── HaxBall — pure Socket.io relay (physics = Phaser 2 P2.js client-side) ──
+// Matches open-hax architecture: server is only a message relay, no physics.
+const HAX_ROOMS = 3, HAX_BOT_ROOMS = 3, HAX_GOAL_LIMIT = 5;
 const haxRooms = {};
-for (let i = 1; i <= HAX_ROOMS_COUNT; i++) {
-  haxRooms[i] = { id: i, isBot: false, players: [], ball: null,
-    score: { gold: 0, rose: 0 }, state: 'waiting',
-    loop: null, tick: 0, startTs: 0, gcool: 0 };
-}
-for (let i = HAX_ROOMS_COUNT + 1; i <= HAX_ROOMS_COUNT + HAX_BOT_ROOMS_COUNT; i++) {
-  haxRooms[i] = { id: i, isBot: true, players: [], ball: null,
-    score: { gold: 0, rose: 0 }, state: 'waiting',
-    loop: null, tick: 0, startTs: 0, gcool: 0 };
-  haxSeedBots(i);
-}
-
-function haxMakeBot(rid, idx) {
-  return { id: `hbot-${rid}-${idx}`, name: HAX_BOT_NAMES[idx % HAX_BOT_NAMES.length],
-    team: 'rose', x: FW * 0.70, y: FH/2 + (idx - 0.5) * 70,
-    vx: 0, vy: 0, keys: {}, kickCooldown: 0, isBot: true };
-}
-
-function haxSeedBots(rid) {
-  const r = haxRooms[rid];
-  r.players = r.players.filter(p => !p.isBot);
-  for (let i = 0; i < 2; i++) r.players.push(haxMakeBot(rid, i));
-}
-
-// Bot AI: rose team attacks left goal (x < GOAL_XL)
-// Strategy: get behind ball (to ball's right) and kick left toward goal
-function haxBotAI(bot, ball, idx) {
-  const dx = ball.x - bot.x;
-  const dy = ball.y - bot.y;
-  const dist = Math.hypot(dx, dy);
-  const isStriker = idx === 0;
-
-  // Target position: approach ball from the right to push it left
-  let tx, ty;
-  if (dist < KICK_RANGE + 5) {
-    // On top of ball — kick toward left goal
-    tx = ball.x;
-    ty = ball.y;
-  } else if (dist < 120) {
-    // Close: move directly to ball
-    tx = ball.x + (isStriker ? 8 : 15);
-    ty = ball.y;
-  } else {
-    // Far: position to ball's right side
-    tx = ball.x + 40;
-    ty = ball.y + (bot.y - ball.y) * 0.2;
-  }
-
-  // Defender (idx=1): also cover own goal
-  if (!isStriker && ball.x > FW * 0.6) {
-    tx = GOAL_XR - 60;
-    ty = FH / 2;
-  }
-
-  tx += (Math.random() - 0.5) * 10;
-  ty += (Math.random() - 0.5) * 10;
-
-  const kick = dist < KICK_RANGE + 2;
-  return {
-    left:  bot.x > tx + 6,
-    right: bot.x < tx - 6,
-    up:    bot.y > ty + 6,
-    down:  bot.y < ty - 6,
-    kick,
+for (let i = 1; i <= HAX_ROOMS + HAX_BOT_ROOMS; i++) {
+  haxRooms[i] = {
+    id: i, isBot: i > HAX_ROOMS,
+    players: [],      // {id, name, team}
+    state: 'waiting',
+    score: { gold: 0, rose: 0 },
+    host: null,       // socket ID of host (runs ball physics + goals)
+    goalLock: false,
   };
 }
-
-function haxBallObj() { return { x: FW/2, y: FH/2, vx: 0, vy: 0 }; }
-
-function haxSpawn(room) {
-  const gold = room.players.filter(p => p.team === 'gold');
-  const rose = room.players.filter(p => p.team === 'rose');
-  // Gold spawns left (attacking right), rose spawns right (attacking left)
-  gold.forEach((p, i) => { p.x = FW*0.30; p.y = FH/2 + (i-(gold.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
-  rose.forEach((p, i) => { p.x = FW*0.70; p.y = FH/2 + (i-(rose.length-1)/2)*60; p.vx=0; p.vy=0; p.kickCooldown=0; });
-  room.ball = haxBallObj();
-}
-
-function haxStart(rid) {
-  const r = haxRooms[rid];
-  if (r.loop) clearInterval(r.loop);
-  r.state = 'playing'; r.score = { gold: 0, rose: 0 };
-  r.startTs = Date.now(); r.tick = 0; r.gcool = 0;
-  haxSpawn(r);
-  io.to(`hax:${rid}`).emit('hax:start', { score: r.score });
-  r.loop = setInterval(() => haxTick(rid), 1000 / 60);
-}
-
-function haxStop(rid) {
-  const r = haxRooms[rid];
-  if (r.loop) { clearInterval(r.loop); r.loop = null; }
-  r.state = 'waiting';
-}
-
-function haxTick(rid) {
-  const r = haxRooms[rid];
-  r.tick++;
-  if (r.gcool > 0) { r.gcool--; haxBcast(rid); return; }
-
-  // Bot AI (every 3 ticks ≈ 20fps)
-  if (r.isBot && r.ball && r.tick % 3 === 0) {
-    r.players.filter(p => p.isBot).forEach((bot, idx) => {
-      bot.keys = haxBotAI(bot, r.ball, idx);
-    });
-  }
-
-  const b = r.ball;
-
-  // ── Players ───────────────────────────────────────────────────────────────
-  for (const p of r.players) {
-    const k = p.keys || {};
-
-    // Movement (Phaser P2 thrust model)
-    let ax = 0, ay = 0;
-    if (k.up)    ay -= PA;
-    if (k.down)  ay += PA;
-    if (k.left)  ax -= PA;
-    if (k.right) ax += PA;
-    if (ax && ay) { ax *= 0.707; ay *= 0.707; }
-    p.vx += ax; p.vy += ay;
-    p.vx *= PF; p.vy *= PF;
-    const spd = Math.hypot(p.vx, p.vy);
-    if (spd > PMS) { p.vx *= PMS / spd; p.vy *= PMS / spd; }
-    p.x += p.vx; p.y += p.vy;
-
-    // Wall clamp — players stay inside field (not in nets)
-    if (p.y < PR)       { p.y = PR;       p.vy =  Math.abs(p.vy) * 0.3; }
-    if (p.y > FH - PR)  { p.y = FH - PR;  p.vy = -Math.abs(p.vy) * 0.3; }
-    if (p.x < PR)       { p.x = PR;       p.vx =  Math.abs(p.vx) * 0.3; }
-    if (p.x > FW - PR)  { p.x = FW - PR;  p.vx = -Math.abs(p.vx) * 0.3; }
-
-    // Kick mechanic (open-hax: X key, force=4000 on ball)
-    if (p.kickCooldown > 0) p.kickCooldown--;
-    if (k.kick && p.kickCooldown === 0 && b) {
-      const kdx = b.x - p.x, kdy = b.y - p.y;
-      const kd = Math.hypot(kdx, kdy);
-      if (kd < KICK_RANGE && kd > 0.1) {
-        const knx = kdx / kd, kny = kdy / kd;
-        b.vx += knx * KICK_V;
-        b.vy += kny * KICK_V;
-        const bs = Math.hypot(b.vx, b.vy);
-        if (bs > B_MAX_SPEED) { b.vx *= B_MAX_SPEED / bs; b.vy *= B_MAX_SPEED / bs; }
-        p.kickCooldown = KICK_CD;
-      }
-    }
-  }
-
-  // ── Ball ──────────────────────────────────────────────────────────────────
-  b.vx *= BF; b.vy *= BF;
-  b.x  += b.vx; b.y  += b.vy;
-
-  // Top / bottom walls
-  if (b.y - BR < 0)       { b.y = BR;       b.vy =  Math.abs(b.vy) * BWB; }
-  if (b.y + BR > FH)      { b.y = FH - BR;  b.vy = -Math.abs(b.vy) * BWB; }
-
-  // Left wall with goal opening (y 160-300)
-  if (b.x - BR < GOAL_XL) {
-    if (b.y >= GOAL_Y1 && b.y <= GOAL_Y2) {
-      // Inside net: bounce off back wall
-      if (b.x - BR < GOAL_XL - GOAL_DEPTH) {
-        b.x = GOAL_XL - GOAL_DEPTH + BR;
-        b.vx = Math.abs(b.vx) * BWB;
-      }
-    } else {
-      b.x = GOAL_XL + BR;
-      b.vx = Math.abs(b.vx) * BWB;
-    }
-  }
-
-  // Right wall with goal opening
-  if (b.x + BR > GOAL_XR) {
-    if (b.y >= GOAL_Y1 && b.y <= GOAL_Y2) {
-      if (b.x + BR > GOAL_XR + GOAL_DEPTH) {
-        b.x = GOAL_XR + GOAL_DEPTH - BR;
-        b.vx = -Math.abs(b.vx) * BWB;
-      }
-    } else {
-      b.x = GOAL_XR - BR;
-      b.vx = -Math.abs(b.vx) * BWB;
-    }
-  }
-
-  // Goal posts (open-hax disc positions)
-  haxPost(b, GOAL_XL, GOAL_Y1);
-  haxPost(b, GOAL_XL, GOAL_Y2);
-  haxPost(b, GOAL_XR, GOAL_Y1);
-  haxPost(b, GOAL_XR, GOAL_Y2);
-
-  // Player–ball collisions (low restitution = 0.1 like open-hax)
-  for (const p of r.players) haxResolve(p, PR, PM, b, BR, BM, BPB);
-
-  // Player–player collisions
-  for (let i = 0; i < r.players.length; i++)
-    for (let j = i + 1; j < r.players.length; j++)
-      haxResolve(r.players[i], PR, PM, r.players[j], PR, PM, 0.85);
-
-  // Cap ball speed
-  const bspd = Math.hypot(b.vx, b.vy);
-  if (bspd > B_MAX_SPEED) { b.vx *= B_MAX_SPEED / bspd; b.vy *= B_MAX_SPEED / bspd; }
-
-  // ── Goal detection ────────────────────────────────────────────────────────
-  const inY = b.y >= GOAL_Y1 && b.y <= GOAL_Y2;
-  let goal = null;
-  // Ball center past goal line + deep enough in net
-  if (inY && b.x < GOAL_XL - GOAL_DEPTH * 0.4) goal = 'rose'; // rose attacks left goal
-  if (inY && b.x > GOAL_XR + GOAL_DEPTH * 0.4) goal = 'gold'; // gold attacks right goal
-
-  if (goal) {
-    r.score[goal]++;
-    r.gcool = 150; // 2.5s freeze (open-hax style)
-    // Immediately stop all velocities so nobody keeps moving during celebration
-    r.players.forEach(p => { p.vx = 0; p.vy = 0; p.keys = {}; });
-    r.ball.vx = 0; r.ball.vy = 0;
-    io.to(`hax:${rid}`).emit('hax:goal', { scorer: goal, score: r.score });
-    // Respawn at center after 2s (like real HaxBall)
-    setTimeout(() => {
-      if (r.score[goal] >= HAX_GOAL_LIMIT) {
-        haxStop(rid);
-        io.to(`hax:${rid}`).emit('hax:gameover', { winner: goal, score: r.score });
-        if (r.isBot) setTimeout(() => {
-          if (r.players.some(p => !p.isBot)) { haxSeedBots(rid); haxStart(rid); }
-        }, 4000);
-      } else {
-        if (r.isBot) haxSeedBots(rid);
-        haxSpawn(r); // respawn at center positions
-        io.to(`hax:${rid}`).emit('hax:respawn'); // tell clients to reset prediction
-      }
-    }, 2000);
-  }
-
-  const elapsed = (Date.now() - r.startTs) / 1000;
-  if (elapsed >= HAX_TIME_LIMIT) {
-    haxStop(rid);
-    const w = r.score.gold > r.score.rose ? 'gold' : r.score.rose > r.score.gold ? 'rose' : 'draw';
-    io.to(`hax:${rid}`).emit('hax:gameover', { winner: w, score: r.score });
-    return;
-  }
-
-  haxBcast(rid, elapsed);
-}
-
-function haxBcast(rid, elapsed) {
-  const r = haxRooms[rid];
-  io.to(`hax:${rid}`).emit('hax:state', {
-    players: r.players.map(p => ({ id: p.id, x: p.x, y: p.y, team: p.team, name: p.name })),
-    ball:    r.ball ? { x: r.ball.x, y: r.ball.y } : { x: FW/2, y: FH/2 },
-    score:   r.score,
-    time:    elapsed !== undefined ? Math.max(0, HAX_TIME_LIMIT - elapsed) : HAX_TIME_LIMIT,
-  });
-}
-
-// Bounce ball off a goal post disc (open-hax: disc radius=7.5)
-function haxPost(b, px, py) {
-  const dx = b.x - px, dy = b.y - py, d = Math.hypot(dx, dy);
-  const minD = BR + 7.5;
-  if (d < minD && d > 0.001) {
-    const nx = dx / d, ny = dy / d;
-    b.x = px + nx * (minD + 0.1); b.y = py + ny * (minD + 0.1);
-    const dot = b.vx * nx + b.vy * ny;
-    if (dot < 0) { b.vx -= 2 * dot * nx * BWB; b.vy -= 2 * dot * ny * BWB; }
-  }
-}
-
 function haxRoster(r) {
-  return r.players.map(p => ({ id: p.id, name: p.name, team: p.team, isBot: !!p.isBot }));
-}
-
-// Circle–circle elastic collision
-function haxResolve(a, ra, ma, b, rb, mb, rest) {
-  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), md = ra + rb;
-  if (d >= md || d < 0.001) return;
-  const nx = dx / d, ny = dy / d, ov = md - d, tm = ma + mb;
-  a.x -= nx * ov * mb / tm; a.y -= ny * ov * mb / tm;
-  b.x += nx * ov * ma / tm; b.y += ny * ov * ma / tm;
-  const rvx = b.vx - a.vx, rvy = b.vy - a.vy, rv = rvx * nx + rvy * ny;
-  if (rv >= 0) return;
-  const j = -(1 + rest) * rv / (1 / ma + 1 / mb);
-  a.vx -= j / ma * nx; a.vy -= j / ma * ny;
-  b.vx += j / mb * nx; b.vy += j / mb * ny;
+  return r.players.map(p => ({ id: p.id, name: p.name, team: p.team }));
 }
 
 // ─── Global chat ──────────────────────────────────────────────────────────────
@@ -1023,72 +725,89 @@ io.on('connection', socket => {
     handleAction(playerRoomId, socket.id, action, amount);
   });
 
-  // ── HaxBall handlers ──────────────────────────────────────────────────────
+  // ── HaxBall relay (pure relay, no server physics — like open-hax app.js) ──
   let haxRid = null;
 
   socket.on('hax:rooms', () => {
     socket.emit('hax:rooms', Object.values(haxRooms).map(r => ({
-      id: r.id, state: r.state, score: r.score, isBot: r.isBot,
-      gold: r.players.filter(p => p.team==='gold' && !p.isBot).length,
-      rose: r.players.filter(p => p.team==='rose' && !p.isBot).length,
-      bots: r.players.filter(p => p.isBot).length,
+      id: r.id, isBot: r.isBot, state: r.state, score: r.score,
+      gold: r.players.filter(p => p.team === 'gold').length,
+      rose: r.players.filter(p => p.team === 'rose').length,
     })));
   });
 
   socket.on('hax:join', ({ roomId, team, name }) => {
-    // Leave previous hax room
     if (haxRid) {
       const pr = haxRooms[haxRid];
       if (pr) {
         pr.players = pr.players.filter(p => p.id !== socket.id);
         socket.leave(`hax:${haxRid}`);
+        if (pr.host === socket.id) pr.host = pr.players[0]?.id || null;
+        if (pr.players.length === 0) { pr.state='waiting'; pr.score={gold:0,rose:0}; pr.goalLock=false; }
         io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(pr));
-        if (pr.players.filter(p=>!p.isBot).length === 0) haxStop(haxRid);
       }
       haxRid = null;
     }
     const r = haxRooms[roomId];
     if (!r) return;
-
-    // Bot room: human always joins gold, max 1 human
     const effectiveTeam = r.isBot ? 'gold' : team;
-    if (r.isBot && r.players.filter(p => !p.isBot).length >= 1)
-      return socket.emit('error', 'Arena z botami — tylko 1 gracz');
+    if (r.isBot && r.players.length >= 1) return socket.emit('error', 'Arena z botami — tylko 1 gracz');
     if (!r.isBot && r.players.filter(p => p.team === effectiveTeam).length >= 3)
       return socket.emit('error', 'Drużyna pełna (max 3)');
 
     haxRid = roomId;
-    r.players.push({ id: socket.id, name: (name||'Gracz').slice(0,14),
-      team: effectiveTeam, x: effectiveTeam==='gold'?FW*0.28:FW*0.72,
-      y: FH/2, vx:0, vy:0, keys:{}, isBot: false });
+    const isHost = r.players.length === 0;
+    if (isHost) r.host = socket.id;
+    r.players.push({ id: socket.id, name: (name||'Gracz').slice(0,14), team: effectiveTeam });
     socket.join(`hax:${roomId}`);
-    socket.emit('hax:joined', { roomId, team: effectiveTeam });
+    socket.emit('hax:joined', { roomId, team: effectiveTeam, isHost, isBotRoom: r.isBot });
     io.to(`hax:${roomId}`).emit('hax:roster', haxRoster(r));
 
-    // Auto-start
-    if (r.state === 'waiting') {
-      if (r.isBot) {
-        // Start immediately (bots already on rose team)
-        setTimeout(() => { if (r.state==='waiting') haxStart(roomId); }, 1500);
-      } else {
-        const hasG = r.players.some(p => p.team==='gold');
-        const hasR = r.players.some(p => p.team==='rose');
-        if (hasG && hasR) {
-          setTimeout(() => {
-            if (r.state==='waiting' &&
-                r.players.some(p=>p.team==='gold') &&
-                r.players.some(p=>p.team==='rose'))
-              haxStart(roomId);
-          }, 3000);
+    const ready = () => r.isBot
+      ? r.players.length >= 1
+      : r.players.some(p=>p.team==='gold') && r.players.some(p=>p.team==='rose');
+    if (r.state === 'waiting' && ready()) {
+      setTimeout(() => {
+        if (r.state === 'waiting' && ready()) {
+          r.state = 'playing';
+          io.to(`hax:${roomId}`).emit('hax:start', { score: r.score });
         }
-      }
+      }, r.isBot ? 1500 : 3000);
     }
   });
 
-  socket.on('hax:keys', keys => {
+  // Relay player position to room peers
+  socket.on('hax:pos', data => {
     if (!haxRid) return;
-    const p = haxRooms[haxRid]?.players.find(pl => pl.id === socket.id);
-    if (p) p.keys = keys;
+    socket.to(`hax:${haxRid}`).emit('hax:pos', { id: socket.id, ...data });
+  });
+
+  // Host relays ball position to non-hosts
+  socket.on('hax:ball', data => {
+    if (!haxRid) return;
+    if (haxRooms[haxRid]?.host !== socket.id) return;
+    socket.to(`hax:${haxRid}`).emit('hax:ball', data);
+  });
+
+  // Host reports goal → server tracks score
+  socket.on('hax:goal', ({ scorer }) => {
+    if (!haxRid) return;
+    const r = haxRooms[haxRid];
+    if (!r || r.host !== socket.id || r.goalLock) return;
+    r.goalLock = true;
+    r.score[scorer] = (r.score[scorer]||0) + 1;
+    io.to(`hax:${haxRid}`).emit('hax:goal', { scorer, score: r.score });
+    setTimeout(() => {
+      r.goalLock = false;
+      if (r.score[scorer] >= HAX_GOAL_LIMIT) {
+        const winner = scorer;
+        r.score = {gold:0,rose:0};
+        r.state = r.isBot ? 'playing' : 'waiting';
+        io.to(`hax:${haxRid}`).emit('hax:gameover', { winner });
+      } else {
+        io.to(`hax:${haxRid}`).emit('hax:respawn');
+      }
+    }, 2500);
   });
 
   socket.on('hax:leave', () => {
@@ -1097,31 +816,29 @@ io.on('connection', socket => {
     if (r) {
       r.players = r.players.filter(p => p.id !== socket.id);
       socket.leave(`hax:${haxRid}`);
-      const humans = r.players.filter(p => !p.isBot);
-      if (humans.length === 0) {
-        haxStop(haxRid);
-        if (r.isBot) haxSeedBots(haxRid);
+      if (r.host === socket.id) {
+        r.host = r.players[0]?.id || null;
+        if (r.host) io.to(r.host).emit('hax:became-host');
       }
+      if (r.players.length === 0) { r.state='waiting'; r.score={gold:0,rose:0}; r.goalLock=false; }
       io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(r));
     }
     haxRid = null;
   });
 
   socket.on('disconnect', () => {
-    // HaxBall cleanup
     if (haxRid) {
       const r = haxRooms[haxRid];
       if (r) {
         r.players = r.players.filter(p => p.id !== socket.id);
-        const humans = r.players.filter(p => !p.isBot);
-        if (humans.length === 0) {
-          haxStop(haxRid);
-          if (r.isBot) haxSeedBots(haxRid);
+        if (r.host === socket.id) {
+          r.host = r.players[0]?.id || null;
+          if (r.host) io.to(r.host).emit('hax:became-host');
         }
+        if (r.players.length === 0) { r.state='waiting'; r.score={gold:0,rose:0}; r.goalLock=false; }
         io.to(`hax:${haxRid}`).emit('hax:roster', haxRoster(r));
       }
     }
-    // Poker cleanup
     if (!playerRoomId || !playerName) return;
     playerDisconnected(socket, playerRoomId, playerName);
   });

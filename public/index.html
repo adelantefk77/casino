@@ -233,7 +233,8 @@ tailwind.config = {
 /* ─── Login Modal ──────────────────────────────────────────────────────────── */
 #login-modal { backdrop-filter: blur(12px); }
 /* ─── HaxBall ──────────────────────────────────────────────────────────────── */
-#hax-canvas { display:block; width:100%; image-rendering:pixelated; border:2px solid rgba(233,195,73,0.25); border-radius:4px; }
+/* Phaser injects a canvas — make it fill the container responsively */
+#hax-phaser-container canvas { display:block; width:100% !important; height:auto !important; }
 .hax-team-btn { transition:all 0.15s; }
 .hax-team-btn.selected { box-shadow:0 0 0 2px currentColor, 0 0 16px rgba(233,195,73,0.3); }
 @keyframes goalFlash { 0%{opacity:0;transform:scale(0.5)} 20%{opacity:1;transform:scale(1.1)} 80%{opacity:1;transform:scale(1)} 100%{opacity:0} }
@@ -958,13 +959,14 @@ tailwind.config = {
       </div>
     </div>
 
-    <!-- Canvas wrapper -->
+    <!-- Phaser 2 game container (canvas injected here by Phaser) -->
     <div class="relative">
-      <canvas id="hax-canvas" width="860" height="460"></canvas>
+      <div id="hax-phaser-container" style="width:100%;line-height:0;border:2px solid rgba(233,195,73,0.25);border-radius:4px;overflow:hidden;background:#0a1a05;">
+        <!-- Phaser injects canvas here on game start -->
+      </div>
       <div id="hax-goal-flash" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0">
         <span id="hax-goal-text" class="font-headline text-5xl font-black drop-shadow-2xl"></span>
       </div>
-      <!-- Waiting overlay -->
       <div id="hax-waiting-overlay" class="absolute inset-0 flex items-center justify-center bg-black/60 rounded">
         <p class="font-label text-xs text-primary uppercase tracking-widest animate-pulse">Czekamy na obie drużyny…</p>
       </div>
@@ -2540,451 +2542,566 @@ function toggleChat() {
   }
 }
 
-// ─── HaxBall ──────────────────────────────────────────────────────────────────
-// Field matches open-hax exactly
-const HAX_FW = 860, HAX_FH = 460;
-const HAX_GXL = 30,  HAX_GXR = 830;  // goal mouth x
-const HAX_GY1 = 160, HAX_GY2 = 300;  // goal y range
-const HAX_GD  = 28;                   // net depth
-const HAX_PR = 15, HAX_BR = 10;
+// ─── HaxBall — Phaser 2 + P2.js, 1:1 translation of open-hax mechanics ─────────
+// Source: https://github.com/erasmo-marin/open-hax
+// Physics, field layout, player movement and kick replicated exactly.
+// Server is a pure relay — no server-side physics.
 
-// Colors matching casino theme
-const TEAM_COLOR  = { gold: '#e9c349', rose: '#ffb4a8' };
-const TEAM_GLOW   = { gold: 'rgba(233,195,73,0.6)', rose: 'rgba(255,180,168,0.6)' };
-const FIELD_BG    = '#0c1f08';
-const FIELD_LINE  = 'rgba(233,195,73,0.25)';
-const FIELD_LINE2 = 'rgba(233,195,73,0.5)';
+// Field layout from open-hax game.jsx (exact coordinates)
+const HAX_LINES = [
+  {x1:30, y1:30,  x2:830,y2:30,  ball:true, player:false},
+  {x1:830,y1:30,  x2:830,y2:160, ball:true, player:false},
+  {x1:830,y1:300, x2:830,y2:430, ball:true, player:false},
+  {x1:30, y1:430, x2:830,y2:430, ball:true, player:false},
+  {x1:30, y1:30,  x2:30, y2:160, ball:true, player:false},
+  {x1:30, y1:300, x2:30, y2:430, ball:true, player:false},
+  {x1:429,y1:30,  x2:429,y2:430, ball:false,player:false},
+];
+// Goal posts — casino colors: gold=home(left), rose=away(right)
+const HAX_DISCS = [
+  {x:30, y:160,diameter:15,colBall:true,colPlayer:true,bg:0xe9c349},
+  {x:30, y:300,diameter:15,colBall:true,colPlayer:true,bg:0xe9c349},
+  {x:830,y:160,diameter:15,colBall:true,colPlayer:true,bg:0xffb4a8},
+  {x:830,y:300,diameter:15,colBall:true,colPlayer:true,bg:0xffb4a8},
+];
 
-let haxSocket = null;
-let haxMyId   = null;
-let haxMyTeam = null;
+// State
+let haxSocket    = null;
+let haxMyId      = null;
+let haxIsHost    = false;
+let haxIsBotRoom = false;
+let haxMyTeam    = null;
 let haxPickedRoom = null;
 let haxPickedTeam = null;
-let haxState  = null;
-let haxRoster = [];
-let haxKeys   = { up:false, down:false, left:false, right:false, kick:false };
-let haxRAF    = null;
-let haxRunning = false;
-
-// ── Client-side prediction (same constants as server) ─────────────────────────
-// Eliminates input delay — player moves immediately on client
-const HAX_PA  = 0.55;   // accel px/frame
-const HAX_PMS = 4.5;    // max speed px/frame
-const HAX_PF  = 0.87;   // friction per frame
-let haxPred = null;      // { x, y, vx, vy, kickCd } — local player predicted pos
-let haxKeysSentAt = 0;   // throttle key sends
+let haxScore     = {gold:0,rose:0};
+let haxGoalLock  = false;
+let haxGame      = null;
+let haxPlayerObj = null;
+let haxBallObj   = null;
+let haxGhosts    = {};
+let haxBotObjs   = [];
+let haxChilds    = [];
+let haxTouch     = {up:false,down:false,left:false,right:false,kick:false};
 
 function haxOnEnter() {
   if (!haxSocket) haxInitSocket();
   else haxSocket.emit('hax:rooms');
-}
-
-function haxInitSocket() {
-  haxSocket = io({ reconnection:true, reconnectionAttempts:Infinity });
-
-  haxSocket.on('connect', () => {
-    haxMyId = haxSocket.id;
-    haxSocket.emit('hax:rooms');
-  });
-
-  haxSocket.on('hax:rooms', rooms => haxDrawLobby(rooms));
-
-  haxSocket.on('hax:joined', ({ roomId, team }) => {
-    haxMyTeam = team;
-    document.getElementById('hax-lobby').classList.add('hidden');
-    document.getElementById('hax-game').classList.remove('hidden');
-    document.getElementById('hax-leave-btn').classList.remove('hidden');
-    haxRunning = true;
-    haxLoop();
-    haxSetupKeys();
-  });
-
-  haxSocket.on('hax:start', ({ score }) => {
-    haxState = haxState || {};
-    haxState.score = score;
-    haxState.time  = 180;
-    haxPred = null; // reset prediction — will init from next state
-    document.getElementById('hax-status').textContent = 'W grze';
-    document.getElementById('hax-waiting-overlay').style.display = 'none';
-    haxUpdateHUD();
-  });
-
-  haxSocket.on('hax:state', s => {
-    haxState = s;
-    // Init prediction from first state received
-    if (!haxPred && haxMyId) {
-      const me = s.players?.find(p => p.id === haxMyId);
-      if (me) haxPred = { x: me.x, y: me.y, vx: 0, vy: 0, kickCd: 0 };
-    }
-    haxUpdateHUD();
-  });
-
-  haxSocket.on('hax:goal', ({ scorer, score }) => {
-    haxState = haxState || {};
-    haxState.score = score;
-    haxPred = null; // respawn coming — reset prediction
-    haxUpdateHUD();
-    const fl = document.getElementById('hax-goal-flash');
-    const tx = document.getElementById('hax-goal-text');
-    tx.textContent = scorer === 'gold' ? '⚽ ZŁOCI STRZELAJĄ!' : '⚽ RÓŻOWI STRZELAJĄ!';
-    tx.style.color = TEAM_COLOR[scorer];
-    fl.classList.remove('show');
-    void fl.offsetWidth;
-    fl.classList.add('show');
-    fl.style.opacity = '';
-    setTimeout(() => { fl.classList.remove('show'); fl.style.opacity = '0'; }, 2200);
-  });
-
-  haxSocket.on('hax:respawn', () => {
-    haxPred = null; // reset prediction — will init from next hax:state
-  });
-
-  haxSocket.on('hax:gameover', ({ winner, score }) => {
-    haxState = haxState || {};
-    haxState.score = score;
-    haxUpdateHUD();
-    const msgs = { gold:'🏆 Złoci wygrali!', rose:'🏆 Różowi wygrali!', draw:'🤝 Remis!' };
-    document.getElementById('hax-status').textContent = msgs[winner] || 'Koniec!';
-    showToast(msgs[winner] || 'Koniec!');
-    document.getElementById('hax-waiting-overlay').style.display = 'flex';
-    document.getElementById('hax-waiting-overlay').querySelector('p').textContent = msgs[winner] || 'Koniec!';
-    setTimeout(() => {
-      document.getElementById('hax-waiting-overlay').querySelector('p').textContent = 'Czekamy na obie drużyny…';
-    }, 5000);
-  });
-
-  haxSocket.on('hax:roster', players => {
-    haxRoster = players;
-    haxMyId = haxSocket.id;
-    const gold = players.filter(p=>p.team==='gold');
-    const rose = players.filter(p=>p.team==='rose');
-    const rg = document.getElementById('hax-roster-gold');
-    const rr = document.getElementById('hax-roster-rose');
-    const pRow = (p) => `<div class="font-label text-[11px] ${p.id===haxMyId?'text-primary font-bold':p.isBot?'text-gray-600':'text-gray-400'}">${p.id===haxMyId?'▶ ':p.isBot?'🤖 ':''}${escHtml(p.name)}</div>`;
-    if (rg) rg.innerHTML = gold.map(pRow).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
-    if (rr) rr.innerHTML = rose.map(pRow).join('') || '<div class="font-label text-[11px] text-gray-600">—</div>';
-    // Show start overlay only if human teams are missing (bots count as rose)
-    const overlay = document.getElementById('hax-waiting-overlay');
-    if (overlay) {
-      const hasHuman = [...gold, ...rose].some(p => !p.isBot);
-      const hasBothSides = (gold.length > 0) && (rose.length > 0);
-      overlay.style.display = (hasHuman && hasBothSides) ? 'none' : 'flex';
-    }
-  });
-}
-
-function haxDrawLobby(rooms) {
-  const grid = document.getElementById('hax-rooms-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  const human = rooms.filter(r => !r.isBot);
-  const bot   = rooms.filter(r => r.isBot);
-
-  const addHeader = (label) => {
-    const h = document.createElement('div');
-    h.className = 'col-span-full font-label text-[10px] uppercase tracking-[0.3em] text-gray-500 pt-2 pb-1 border-b border-white/5';
-    h.textContent = label;
-    grid.appendChild(h);
-  };
-
-  const addRoom = (r) => {
-    const isFull = r.isBot ? (r.gold >= 1) : false;
-    const div = document.createElement('div');
-    div.className = `bg-surface-container-low rounded-lg p-5 flex flex-col gap-3 transition-colors border ${
-      r.isBot ? 'border-secondary/15 hover:border-secondary/30' : 'border-white/5 hover:border-primary/20'
-    }`;
-    const stateBadge = r.state==='playing'
-      ? 'bg-secondary/20 text-secondary' : 'bg-primary/10 text-primary';
-    const playersInfo = r.isBot
-      ? `<span class="font-label text-xs text-gray-400">👤 ${r.gold}/1 gracz · 🤖 ${r.bots} boty</span>`
-      : `<span class="font-label text-xs" style="color:${TEAM_COLOR.gold}">● Złoci ${r.gold}/3</span>
-         <span class="font-label text-xs" style="color:${TEAM_COLOR.rose}">● Różowi ${r.rose}/3</span>`;
-    const btn = isFull
-      ? `<div class="font-label text-[10px] text-secondary uppercase tracking-widest">Zajęta</div>`
-      : `<button onclick="haxSelectRoom(${r.id},${r.isBot})" class="w-full py-2.5 font-label font-bold text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all ${r.isBot?'bg-secondary text-on-secondary':'bg-primary text-on-primary'}">WEJDŹ</button>`;
-    div.innerHTML = `
-      <div class="flex items-center justify-between">
-        <h4 class="font-headline text-lg font-black ${r.isBot?'text-secondary':'text-primary'}">
-          Arena ${r.id}${r.isBot?' 🤖':''}
-        </h4>
-        <span class="font-label text-[10px] uppercase px-2 py-1 rounded ${stateBadge}">${r.state==='playing'?'W grze':'Oczekuje'}</span>
-      </div>
-      <div class="flex gap-3">${playersInfo}</div>
-      <div class="text-[10px] font-label text-gray-500">Do 5 goli · 3 min${r.isBot?' · Solo vs boty':''}</div>
-      ${btn}
-    `;
-    grid.appendChild(div);
-  };
-
-  addHeader('Areny dla graczy');
-  human.forEach(addRoom);
-  addHeader('Areny z botami 🤖');
-  bot.forEach(addRoom);
-}
-
-function haxSelectRoom(id, isBot) {
-  haxPickedRoom = id;
-  document.getElementById('hax-join-form').classList.remove('hidden');
-  if (isBot) {
-    // Bot arena: always gold team, join immediately
-    haxPickedTeam = 'gold';
-    document.getElementById('hax-btn-gold').classList.add('selected');
-    document.getElementById('hax-btn-rose').classList.remove('selected');
-    document.getElementById('hax-btn-rose').style.opacity = '0.35';
-    document.getElementById('hax-btn-rose').style.pointerEvents = 'none';
-    document.getElementById('hax-join-btn').disabled = false;
-  } else {
-    haxPickedTeam = null;
-    document.getElementById('hax-join-btn').disabled = true;
-    document.getElementById('hax-btn-gold').classList.remove('selected');
-    document.getElementById('hax-btn-rose').classList.remove('selected');
-    document.getElementById('hax-btn-rose').style.opacity = '';
-    document.getElementById('hax-btn-rose').style.pointerEvents = '';
+  if (!window.Phaser) {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/phaser/2.6.2/phaser.min.js';
+    document.head.appendChild(s);
   }
 }
 
+function haxInitSocket() {
+  haxSocket = io({reconnection:true, reconnectionAttempts:Infinity});
+  haxSocket.on('connect', () => { haxMyId=haxSocket.id; haxSocket.emit('hax:rooms'); });
+  haxSocket.on('hax:rooms', rooms => haxDrawLobby(rooms));
+  haxSocket.on('hax:joined', function(d) {
+    haxMyTeam=d.team; haxIsHost=d.isHost; haxIsBotRoom=d.isBotRoom;
+    document.getElementById('hax-lobby').classList.add('hidden');
+    document.getElementById('hax-game').classList.remove('hidden');
+    document.getElementById('hax-leave-btn').classList.remove('hidden');
+    document.getElementById('hax-waiting-overlay').style.display='flex';
+  });
+  haxSocket.on('hax:start', function(d) {
+    haxScore=d.score; haxUpdateHUD();
+    document.getElementById('hax-waiting-overlay').style.display='none';
+    document.getElementById('hax-status').textContent='W grze';
+    haxLaunchWhenReady();
+  });
+  haxSocket.on('hax:roster', function(players) {
+    haxUpdateRosterUI(players);
+    if (haxGame) haxSyncGhosts(players);
+  });
+  haxSocket.on('hax:pos', function(d) {
+    var g=haxGhosts[d.id];
+    if (g) { g.targetX=d.x; g.targetY=d.y; }
+  });
+  haxSocket.on('hax:ball', function(d) {
+    if (!haxBallObj||haxIsHost) return;
+    haxBallObj.sprite.body.x=d.x; haxBallObj.sprite.body.y=d.y;
+    haxBallObj.sprite.body.velocity.x=d.vx; haxBallObj.sprite.body.velocity.y=d.vy;
+  });
+  haxSocket.on('hax:goal', function(d) {
+    haxScore=d.score; haxUpdateHUD();
+    var fl=document.getElementById('hax-goal-flash');
+    var tx=document.getElementById('hax-goal-text');
+    tx.textContent = d.scorer==='gold'?'⚽ ZŁOCI STRZELAJĄ!':'⚽ RÓŻOWI STRZELAJĄ!';
+    tx.style.color  = d.scorer==='gold'?'#e9c349':'#ffb4a8';
+    fl.classList.remove('show'); void fl.offsetWidth; fl.classList.add('show');
+    setTimeout(function(){fl.classList.remove('show');fl.style.opacity='0';},2200);
+  });
+  haxSocket.on('hax:respawn', haxRespawn);
+  haxSocket.on('hax:gameover', function(d) {
+    haxScore={gold:0,rose:0}; haxUpdateHUD();
+    var m={gold:'Złoci wygrali!',rose:'Różowi wygrali!'};
+    document.getElementById('hax-status').textContent=m[d.winner]||'Koniec!';
+    showToast(m[d.winner]||'Koniec!');
+    document.getElementById('hax-waiting-overlay').style.display='flex';
+    document.getElementById('hax-waiting-overlay').querySelector('p').textContent=m[d.winner]||'Rematch za chwilę...';
+  });
+  haxSocket.on('hax:became-host', function(){ haxIsHost=true; });
+}
+
+// Lobby
+function haxDrawLobby(rooms) {
+  var grid=document.getElementById('hax-rooms-grid');
+  if (!grid) return;
+  grid.innerHTML='';
+  var human=rooms.filter(function(r){return !r.isBot;}),
+      bot=rooms.filter(function(r){return r.isBot;});
+  function addHdr(lbl) {
+    var h=document.createElement('div');
+    h.className='col-span-full font-label text-[10px] uppercase tracking-[0.3em] text-gray-500 pt-2 pb-1 border-b border-white/5';
+    h.textContent=lbl; grid.appendChild(h);
+  }
+  function addRoom(r) {
+    var full=r.isBot?(r.gold>=1):false;
+    var d=document.createElement('div');
+    var border=r.isBot?'border-secondary/15 hover:border-secondary/30':'border-white/5 hover:border-primary/20';
+    d.className='bg-surface-container-low rounded-lg p-5 flex flex-col gap-3 transition-colors border '+border;
+    var sc=r.state==='playing'?'bg-secondary/20 text-secondary':'bg-primary/10 text-primary';
+    var stLbl=r.state==='playing'?'W grze':'Oczekuje';
+    var headCls=r.isBot?'text-secondary':'text-primary';
+    var name='Arena '+r.id+(r.isBot?' 🤖':'');
+    var maxG=r.isBot?1:3, maxR=r.isBot?'bot':3;
+    var btnCls=r.isBot?'bg-secondary text-on-secondary':'bg-primary text-on-primary';
+    var btn=full?'<div class="font-label text-[10px] text-secondary">Zajęta</div>'
+      :'<button onclick="haxSelectRoom('+r.id+','+r.isBot+')" class="w-full py-2.5 font-label font-bold text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all '+btnCls+'">WEJDŹ</button>';
+    d.innerHTML='<div class="flex items-center justify-between">'
+      +'<h4 class="font-headline text-lg font-black '+headCls+'">'+name+'</h4>'
+      +'<span class="font-label text-[10px] uppercase px-2 py-1 rounded '+sc+'">'+stLbl+'</span></div>'
+      +'<div class="flex gap-3">'
+      +'<span class="font-label text-xs" style="color:#e9c349">&#9679; Złoci '+r.gold+'/'+maxG+'</span>'
+      +'<span class="font-label text-xs" style="color:#ffb4a8">&#9679; Różowi '+r.rose+'/'+maxR+'</span></div>'
+      +'<div class="text-[10px] font-label text-gray-500">Do 5 goli'+(r.isBot?' · Solo vs boty':'')+'</div>'
+      +btn;
+    grid.appendChild(d);
+  }
+  addHdr('Areny dla graczy'); human.forEach(addRoom);
+  addHdr('Areny z botami'); bot.forEach(addRoom);
+}
+function haxSelectRoom(id, isBot) {
+  haxPickedRoom=id;
+  document.getElementById('hax-join-form').classList.remove('hidden');
+  var roseBtn=document.getElementById('hax-btn-rose');
+  if (isBot) {
+    haxPickedTeam='gold';
+    document.getElementById('hax-btn-gold').classList.add('selected');
+    roseBtn.classList.remove('selected'); roseBtn.style.opacity='0.35'; roseBtn.style.pointerEvents='none';
+    document.getElementById('hax-join-btn').disabled=false;
+  } else {
+    haxPickedTeam=null;
+    document.getElementById('hax-btn-gold').classList.remove('selected');
+    roseBtn.classList.remove('selected'); roseBtn.style.opacity=''; roseBtn.style.pointerEvents='';
+    document.getElementById('hax-join-btn').disabled=true;
+  }
+}
 function haxPickTeam(team) {
-  haxPickedTeam = team;
-  document.getElementById('hax-btn-gold').classList.toggle('selected', team==='gold');
-  document.getElementById('hax-btn-rose').classList.toggle('selected', team==='rose');
-  document.getElementById('hax-join-btn').disabled = false;
+  haxPickedTeam=team;
+  document.getElementById('hax-btn-gold').classList.toggle('selected',team==='gold');
+  document.getElementById('hax-btn-rose').classList.toggle('selected',team==='rose');
+  document.getElementById('hax-join-btn').disabled=false;
 }
-
 function haxJoin() {
-  if (!haxPickedRoom || !haxPickedTeam || !haxSocket) return;
-  haxSocket.emit('hax:join', { roomId: haxPickedRoom, team: haxPickedTeam, name: globalNick });
+  if (!haxPickedRoom||!haxPickedTeam||!haxSocket) return;
+  haxSocket.emit('hax:join',{roomId:haxPickedRoom,team:haxPickedTeam,name:globalNick});
 }
-
 function haxLeave() {
   if (haxSocket) haxSocket.emit('hax:leave');
-  haxRunning = false;
-  if (haxRAF) { cancelAnimationFrame(haxRAF); haxRAF = null; }
-  haxRemoveKeys();
+  haxDestroyGame();
   document.getElementById('hax-lobby').classList.remove('hidden');
   document.getElementById('hax-game').classList.add('hidden');
   document.getElementById('hax-leave-btn').classList.add('hidden');
   document.getElementById('hax-join-form').classList.add('hidden');
-  haxMyTeam = null; haxState = null;
+  haxMyTeam=null; haxIsHost=false; haxIsBotRoom=false;
+  haxScore={gold:0,rose:0}; haxGoalLock=false;
   if (haxSocket) haxSocket.emit('hax:rooms');
 }
-
 function haxUpdateHUD() {
-  const s = haxState?.score || { gold:0, rose:0 };
-  document.getElementById('hax-score-gold').textContent = s.gold;
-  document.getElementById('hax-score-rose').textContent = s.rose;
-  const t = haxState?.time ?? 180;
-  const m = Math.floor(t/60), sec = Math.floor(t%60);
-  document.getElementById('hax-time').textContent = `${m}:${sec.toString().padStart(2,'0')}`;
+  document.getElementById('hax-score-gold').textContent=haxScore.gold||0;
+  document.getElementById('hax-score-rose').textContent=haxScore.rose||0;
+}
+function haxUpdateRosterUI(players) {
+  var gold=players.filter(function(p){return p.team==='gold';});
+  var rose=players.filter(function(p){return p.team==='rose';});
+  function row(p){return '<div class="font-label text-[11px] '+(p.id===haxMyId?'text-primary font-bold':'text-gray-400')+'">'+(p.id===haxMyId?'&#9654; ':'')+escHtml(p.name)+'</div>';}
+  var rg=document.getElementById('hax-roster-gold'), rr=document.getElementById('hax-roster-rose');
+  if(rg) rg.innerHTML=gold.map(row).join('')||'<div class="font-label text-[11px] text-gray-600">—</div>';
+  if(rr) rr.innerHTML=rose.map(row).join('')||'<div class="font-label text-[11px] text-gray-600">—</div>';
 }
 
-// ─── Client-side prediction — zero-delay local movement ──────────────────────
-function haxStepPrediction() {
-  if (!haxPred) return;
+// Phaser game lifecycle
+function haxLaunchWhenReady() {
+  if (window.Phaser) { haxDestroyGame(); haxCreateGame(); }
+  else {
+    var t=setInterval(function(){if(window.Phaser){clearInterval(t);haxDestroyGame();haxCreateGame();}},100);
+  }
+}
+function haxDestroyGame() {
+  if (haxGame) { haxGame.destroy(); haxGame=null; }
+  haxPlayerObj=null; haxBallObj=null; haxGhosts={}; haxBotObjs=[]; haxChilds=[];
+}
+function haxCreateGame() {
+  var wrap=document.getElementById('hax-phaser-container');
+  wrap.innerHTML='';
+  haxGame=new Phaser.Game(860,460,Phaser.AUTO,wrap,{create:haxPCreate,update:haxPUpdate});
+}
 
-  const k = haxKeys;
-  let ax = 0, ay = 0;
-  if (k.up)    ay -= HAX_PA;
-  if (k.down)  ay += HAX_PA;
-  if (k.left)  ax -= HAX_PA;
-  if (k.right) ax += HAX_PA;
-  if (ax && ay) { ax *= 0.707; ay *= 0.707; }
+// Phaser create — mirrors open-hax game.jsx create() exactly
+function haxPCreate() {
+  var G=haxGame;
+  G.stage.backgroundColor='#1a3a0a'; // dark green casino twist on open-hax #5F7B48
+  G.world.setBounds(0,0,860,460);
+  G.physics.startSystem(Phaser.Physics.P2JS);
+  G.physics.p2.setImpactEvents(true);
+  G.physics.p2.restitution=0.75;
 
-  haxPred.vx = (haxPred.vx + ax) * HAX_PF;
-  haxPred.vy = (haxPred.vy + ay) * HAX_PF;
-  const spd = Math.hypot(haxPred.vx, haxPred.vy);
-  if (spd > HAX_PMS) { haxPred.vx *= HAX_PMS/spd; haxPred.vy *= HAX_PMS/spd; }
+  // Collision groups — from open-hax collisions.jsx
+  var cg={
+    FOR_BALL:   G.physics.p2.createCollisionGroup(),
+    FOR_PLAYER: G.physics.p2.createCollisionGroup(),
+    FOR_LINE:   G.physics.p2.createCollisionGroup(),
+    FOR_GOAL:   G.physics.p2.createCollisionGroup(),
+    FOR_DISC:   G.physics.p2.createCollisionGroup(),
+    FOR_CIRCLE: G.physics.p2.createCollisionGroup(),
+    FOR_ARC:    G.physics.p2.createCollisionGroup(),
+  };
+  G.physics.p2.updateBoundsCollisionGroup();
 
-  haxPred.x += haxPred.vx;
-  haxPred.y += haxPred.vy;
+  // Materials — from open-hax materials.jsx init()
+  var mats={
+    world:  G.physics.p2.createMaterial('worldMaterial'),
+    player: G.physics.p2.createMaterial('playerMaterial'),
+    ball:   G.physics.p2.createMaterial('ballMaterial'),
+    field:  G.physics.p2.createMaterial('fieldMaterial'),
+  };
+  var c;
+  c=G.physics.p2.createContactMaterial(mats.player,mats.player);
+  c.friction=1;c.restitution=1;c.stiffness=1e7;c.relaxation=3;
+  c.frictionStiffness=1e7;c.frictionRelaxation=3;c.surfaceVelocity=0;
+  c=G.physics.p2.createContactMaterial(mats.player,mats.world);
+  c.friction=0.3;c.restitution=0;c.surfaceVelocity=0;
+  c=G.physics.p2.createContactMaterial(mats.player,mats.field);
+  c.friction=0.5;c.restitution=0.9;c.stiffness=1e7;c.relaxation=3;
+  c.frictionStiffness=1e7;c.frictionRelaxation=3;c.surfaceVelocity=0;
+  c=G.physics.p2.createContactMaterial(mats.ball,mats.field);
+  c.friction=0.5;c.restitution=0.9;c.stiffness=1e7;c.relaxation=3;
+  c.frictionStiffness=1e7;c.frictionRelaxation=3;c.surfaceVelocity=0;
+  c=G.physics.p2.createContactMaterial(mats.player,mats.ball);
+  c.restitution=0.1; // open-hax: player-ball very soft
+  G.physics.p2.setWorldMaterial(mats.world,true,true,true,true);
+  G.physics.p2.world.defaultContactMaterial.friction=0.9;
+  G.physics.p2.world.setGlobalStiffness(1e5);
+  G._cg=cg; G._mats=mats;
 
-  // Wall clamp (same as server)
-  if (haxPred.y < HAX_PR)        { haxPred.y = HAX_PR;        haxPred.vy = 0; }
-  if (haxPred.y > HAX_FH-HAX_PR) { haxPred.y = HAX_FH-HAX_PR; haxPred.vy = 0; }
-  if (haxPred.x < HAX_PR)        { haxPred.x = HAX_PR;        haxPred.vx = 0; }
-  if (haxPred.x > HAX_FW-HAX_PR) { haxPred.x = HAX_FW-HAX_PR; haxPred.vx = 0; }
+  // Field background
+  var bg=G.add.graphics(0,0);
+  bg.beginFill(0x1a3a0a,1); bg.drawRect(0,0,860,460); bg.endFill();
+  for(var i=0;i<10;i++){if(i%2===0){bg.beginFill(0x000000,0.06);bg.drawRect(i*86,0,86,460);bg.endFill();}}
 
-  // Kick cooldown
-  if (haxPred.kickCd > 0) haxPred.kickCd--;
+  // Lines — from open-hax game.jsx lines array + line.jsx render()
+  HAX_LINES.forEach(function(ln){
+    var sx=(ln.x2-ln.x1)/2+ln.x1, sy=(ln.y2-ln.y1)/2+ln.y1;
+    var gfx=new Phaser.Graphics(G,0,0);
+    gfx.moveTo(ln.x1,ln.y1); gfx.lineStyle(2,0xffffff,1); gfx.lineTo(ln.x2,ln.y2); gfx.endFill();
+    var s=G.add.sprite(sx,sy,gfx.generateTexture());
+    G.physics.p2.enable(s); s.body.static=true;
+    s.body.setCollisionGroup(cg.FOR_LINE);
+    var col=[cg.FOR_LINE];
+    if(ln.ball)   col.push(cg.FOR_BALL);
+    if(ln.player) col.push(cg.FOR_PLAYER);
+    s.body.collides(col);
+    s.body.setMaterial(mats.field);
+  });
 
-  // Server correction: if we drift too far, snap to server position
-  const serverMe = haxState?.players?.find(p => p.id === haxMyId);
-  if (serverMe) {
-    const drift = Math.hypot(haxPred.x - serverMe.x, haxPred.y - serverMe.y);
-    if (drift > 60) {
-      haxPred.x = serverMe.x;
-      haxPred.y = serverMe.y;
-      haxPred.vx = 0;
-      haxPred.vy = 0;
+  // Center circle — from open-hax circles array (visual)
+  var cgfx=new Phaser.Graphics(G,0,0);
+  cgfx.lineStyle(2,0xffffff,0.4); cgfx.drawCircle(0,0,150); cgfx.endFill();
+  var cs=G.add.sprite(860/2,460/2,cgfx.generateTexture()); cs.anchor.set(0.5);
+
+  // Discs (goal posts) — from open-hax disc.jsx render()
+  HAX_DISCS.forEach(function(disc){
+    var gfx=new Phaser.Graphics(G,0,0);
+    gfx.beginFill(disc.bg,1); gfx.lineStyle(2,0x000000,1); gfx.drawCircle(0,0,disc.diameter); gfx.endFill();
+    var s=G.add.sprite(disc.x,disc.y,gfx.generateTexture()); s.anchor.set(0.5);
+    G.physics.p2.enable(s); s.body.setCircle(disc.diameter/2,0,0,0);
+    s.body.setCollisionGroup(cg.FOR_DISC); s.body.static=true;
+    var col=[];
+    if(disc.colBall)   col.push(cg.FOR_BALL);
+    if(disc.colPlayer) col.push(cg.FOR_PLAYER);
+    s.body.collides(col);
+  });
+
+  // Goal visual lines (no physics — from open-hax goal.jsx)
+  [{x1:30,y1:160,x2:30,y2:300},{x1:830,y1:160,x2:830,y2:300}].forEach(function(gl){
+    var gfx=new Phaser.Graphics(G,0,0);
+    gfx.moveTo(gl.x1,gl.y1); gfx.lineStyle(2,0xffffff,0.7); gfx.lineTo(gl.x2,gl.y2); gfx.endFill();
+    G.add.sprite((gl.x2-gl.x1)/2+gl.x1,(gl.y2-gl.y1)/2+gl.y1,gfx.generateTexture());
+  });
+
+  // Ball — from open-hax Ball/index.jsx render()
+  haxBallObj = haxMakeBall(G,mats.ball,cg);
+
+  // Local player — from open-hax Player/index.jsx
+  var spawnX = haxMyTeam==='gold'?300:560;
+  haxPlayerObj = haxMakePlayer(G,mats.player,cg,haxMyTeam,globalNick,'😊',true);
+  haxPlayerObj.render(spawnX,230);
+
+  // Bots for bot arenas (host only) — 2 rose team bots
+  if (haxIsHost&&haxIsBotRoom) {
+    ['Robo Rosa','Robo Striker'].forEach(function(nm,i){
+      var b=haxMakePlayer(G,mats.player,cg,'rose',nm,'🤖',false);
+      b.render(600,180+i*120); b._isBot=true; b._botIdx=i;
+      haxBotObjs.push(b);
+    });
+  }
+
+  haxChilds=[haxPlayerObj,haxBallObj].concat(haxBotObjs);
+}
+
+// Player factory — 1:1 translation of open-hax Player/index.jsx
+function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
+  var color = team==='gold' ? 0xe9c349 : 0xffb4a8;
+  var sprite=null, cursors=null, keyX=null, keySpace=null;
+  var keyW=null,keyA=null,keyS=null,keyD=null;
+  var touchingBall=false, ballBody=null;
+
+  function renderGraphics(active) {
+    var border=active?0xffffff:0x000000;
+    var gfx=new Phaser.Graphics(G);
+    gfx.lineStyle(2,border,1); gfx.beginFill(color,1); gfx.drawCircle(30,30,30);
+    if(isMe){
+      gfx.endFill(); gfx.lineStyle(3,0xffffff,0.2);
+      gfx.beginFill(color,0); gfx.drawCircle(30,30,50);
+    }
+    return gfx;
+  }
+
+  function render(x,y) {
+    sprite=G.add.sprite(x,y,renderGraphics(false).generateTexture());
+    sprite.smoothed=false;
+    G.physics.p2.enable(sprite);
+    sprite.body.setCircle(15,0,0,0);
+    sprite.body.setCollisionGroup(cg.FOR_PLAYER);
+    sprite.body.collides([cg.FOR_PLAYER,cg.FOR_BALL,cg.FOR_LINE,cg.FOR_DISC]);
+    sprite.body.collideWorldBounds=true;
+    sprite.body.setMaterial(material);
+    sprite.body.fixedRotation=true;
+    sprite.body.damping=0.8; // open-hax: damping=0.8
+    sprite.body.fieldElementType='player';
+    sprite.body.onBeginContact.add(function(cb){
+      if(cb&&cb.fieldElementType==='ball'){ballBody=cb;touchingBall=true;}
+    });
+    sprite.body.onEndContact.add(function(){touchingBall=false;});
+    if(!isMe){
+      var lbl=new Phaser.Text(G,0,20,nickname.slice(0,12),{font:'13px Arial',fill:'#ffffff'});
+      lbl.x=-lbl.width/2; sprite.addChild(lbl);
+    }
+    var av=new Phaser.Text(G,0,-10,avatar,{font:'15px Arial',fill:'#ffffff'});
+    av.x=-av.width/2; sprite.addChild(av);
+    if(isMe){
+      cursors=G.input.keyboard.createCursorKeys();
+      keyX    =G.input.keyboard.addKey(Phaser.Keyboard.X);
+      keySpace=G.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+      keyW=G.input.keyboard.addKey(Phaser.Keyboard.W);
+      keyA=G.input.keyboard.addKey(Phaser.Keyboard.A);
+      keyS=G.input.keyboard.addKey(Phaser.Keyboard.S);
+      keyD=G.input.keyboard.addKey(Phaser.Keyboard.D);
+    }
+  }
+
+  // constrainVelocity — from open-hax Player/index.jsx (uses raw P2 velocity)
+  function constrainVelocity(maxV) {
+    var body=sprite.body;
+    var vx=body.data.velocity[0], vy=body.data.velocity[1];
+    var sq=vx*vx+vy*vy;
+    if(sq>maxV*maxV){
+      var ang=Math.atan2(vy,vx);
+      body.data.velocity[0]=Math.cos(ang)*maxV;
+      body.data.velocity[1]=Math.sin(ang)*maxV;
+    }
+  }
+
+  function update() {
+    if(!sprite) return;
+    constrainVelocity(10); // open-hax maxVelocity=10
+    if(!isMe) return;
+    var thrust=250; // open-hax thrust=250
+    var up  =(cursors&&cursors.up.isDown)   ||(keyW&&keyW.isDown)     ||haxTouch.up;
+    var dn  =(cursors&&cursors.down.isDown)  ||(keyS&&keyS.isDown)     ||haxTouch.down;
+    var lt  =(cursors&&cursors.left.isDown)  ||(keyA&&keyA.isDown)     ||haxTouch.left;
+    var rt  =(cursors&&cursors.right.isDown) ||(keyD&&keyD.isDown)     ||haxTouch.right;
+    var kick=(keyX&&keyX.isDown)||(keySpace&&keySpace.isDown)||haxTouch.kick;
+
+    // Diagonal thrust reduction — exactly from open-hax
+    if((lt&&up)||(lt&&dn)||(rt&&up)||(rt&&dn))
+      thrust=Math.sqrt(thrust*thrust/2);
+
+    // Movement: set angle then thrust — exactly open-hax
+    if(lt){      sprite.body.angle=270; sprite.body.thrust(thrust); }
+    else if(rt){ sprite.body.angle=90;  sprite.body.thrust(thrust); }
+    if(up){      sprite.body.angle=0;   sprite.body.thrust(thrust); }
+    else if(dn){ sprite.body.angle=180; sprite.body.thrust(thrust); }
+
+    // Kick mechanic — 1:1 from open-hax Player/index.jsx
+    if(kick&&touchingBall&&ballBody){
+      var p1=sprite.body, p2=ballBody;
+      var a=Math.abs(p1.x-p2.x), b=Math.abs(p1.y-p2.y);
+      var alpha=Math.atan(a/b)*(180/3.14159);
+      if(p1.y<p2.y&&p1.x<p2.x) alpha=180-alpha;
+      if(p1.x>p2.x&&p1.y<p2.y) alpha=alpha+180;
+      if(p1.x>p2.x&&p1.y>p2.y) alpha=360-alpha;
+      p2.angle=alpha; p2.thrust(4000); // open-hax kickForce=4000
+    }
+    // Active border when kicking
+    sprite.loadTexture(renderGraphics(kick).generateTexture());
+  }
+
+  function botUpdate() {
+    if(!sprite||!haxBallObj) return;
+    constrainVelocity(10);
+    var bx=haxBallObj.sprite.x, by=haxBallObj.sprite.y;
+    var px=sprite.x, py=sprite.y;
+    var idx=this._botIdx||0;
+    var tx, ty;
+    if(Math.hypot(bx-px,by-py)<80){ tx=bx+5; ty=by; }
+    else if(idx===1&&bx>620){ tx=700; ty=230; }
+    else{ tx=bx+38+(Math.random()-0.5)*12; ty=by+(Math.random()-0.5)*12; }
+    var ddx=tx-px, ddy=ty-py, dd=Math.hypot(ddx,ddy);
+    if(dd>5){
+      var ang=Math.atan2(ddy,ddx)*(180/Math.PI)+90;
+      sprite.body.angle=ang; sprite.body.thrust(250);
+    }
+    if(touchingBall&&ballBody){
+      var p1=sprite.body, p2=ballBody;
+      var a2=Math.abs(p1.x-p2.x), b2=Math.abs(p1.y-p2.y);
+      var alpha2=Math.atan(a2/b2)*(180/3.14159);
+      if(p1.y<p2.y&&p1.x<p2.x) alpha2=180-alpha2;
+      if(p1.x>p2.x&&p1.y<p2.y) alpha2=alpha2+180;
+      if(p1.x>p2.x&&p1.y>p2.y) alpha2=360-alpha2;
+      p2.angle=alpha2; p2.thrust(4000);
+    }
+  }
+
+  var obj={render:render,update:update,botUpdate:botUpdate,_isBot:false,_botIdx:0};
+  Object.defineProperty(obj,'sprite',{get:function(){return sprite;}});
+  return obj;
+}
+
+// Ball factory — from open-hax Ball/index.jsx render()
+function haxMakeBall(G,material,cg) {
+  var gfx=new Phaser.Graphics(G);
+  gfx.lineStyle(2,0x000000,1); gfx.beginFill(0xffffff,1); gfx.drawCircle(20,20,20);
+  var sprite=G.add.sprite(430,230,gfx.generateTexture());
+  sprite.smoothed=false;
+  G.physics.p2.enable(sprite);
+  sprite.body.setCircle(10,0,0,0);
+  sprite.body.setCollisionGroup(cg.FOR_BALL);
+  sprite.body.collides([cg.FOR_PLAYER,cg.FOR_BALL,cg.FOR_LINE,cg.FOR_DISC,cg.FOR_GOAL]);
+  sprite.body.collideWorldBounds=true;
+  sprite.body.setMaterial(material);
+  sprite.body.fixedRotation=true;
+  sprite.body.damping=0.4; // open-hax: damping=0.4
+  sprite.body.mass=0.8;    // open-hax: mass=0.8
+  sprite.body.fieldElementType='ball';
+  var obj={update:function(){}};
+  Object.defineProperty(obj,'sprite',{get:function(){return sprite;}});
+  return obj;
+}
+
+// Phaser update — mirrors open-hax game.jsx update()
+function haxPUpdate() {
+  // open-hax: this.childs.map(child => child.update())
+  haxChilds.forEach(function(ch){
+    if(!ch||!ch.sprite) return;
+    if(ch._isBot) ch.botUpdate.call(ch);
+    else ch.update();
+  });
+
+  // Lerp ghost sprites
+  Object.keys(haxGhosts).forEach(function(id){
+    var g=haxGhosts[id];
+    if(!g.sprite) return;
+    if(g.targetX!==undefined){
+      g.sprite.x+=(g.targetX-g.sprite.x)*0.5;
+      g.sprite.y+=(g.targetY-g.sprite.y)*0.5;
+    }
+    if(g.lbl){g.lbl.x=g.sprite.x;g.lbl.y=g.sprite.y-22;}
+  });
+
+  // Broadcast local player position
+  if(haxSocket&&haxPlayerObj&&haxPlayerObj.sprite){
+    haxSocket.emit('hax:pos',{x:haxPlayerObj.sprite.x,y:haxPlayerObj.sprite.y});
+  }
+
+  // Host: broadcast authoritative ball position
+  if(haxIsHost&&haxSocket&&haxBallObj&&haxBallObj.sprite){
+    haxSocket.emit('hax:ball',{
+      x:haxBallObj.sprite.x,   y:haxBallObj.sprite.y,
+      vx:haxBallObj.sprite.body.velocity.x,
+      vy:haxBallObj.sprite.body.velocity.y,
+    });
+  }
+
+  // Goal detection (host only) — ball x position like open-hax
+  if(haxIsHost&&haxBallObj&&haxBallObj.sprite&&!haxGoalLock){
+    var bx=haxBallObj.sprite.x, by=haxBallObj.sprite.y;
+    if(bx<30&&by>=160&&by<=300){
+      haxGoalLock=true;
+      haxSocket.emit('hax:goal',{scorer:'rose'});
+      setTimeout(function(){haxGoalLock=false;},3000);
+    } else if(bx>830&&by>=160&&by<=300){
+      haxGoalLock=true;
+      haxSocket.emit('hax:goal',{scorer:'gold'});
+      setTimeout(function(){haxGoalLock=false;},3000);
     }
   }
 }
 
-// Send keys to server — throttled to avoid flooding
-function haxSendKeys() {
-  const now = Date.now();
-  if (now - haxKeysSentAt < 16) return; // max 60/s
-  haxKeysSentAt = now;
-  if (haxSocket) haxSocket.emit('hax:keys', { ...haxKeys });
-}
-
-// ─── Canvas rendering ─────────────────────────────────────────────────────────
-function haxLoop() {
-  if (!haxRunning) return;
-  haxStepPrediction();
-  haxSendKeys();
-  haxDraw();
-  haxRAF = requestAnimationFrame(haxLoop);
-}
-
-function haxDraw() {
-  const cv = document.getElementById('hax-canvas');
-  if (!cv) return;
-  const ctx = cv.getContext('2d');
-  const W = cv.width, H = cv.height; // 860 × 460
-
-  // ── Field ────────────────────────────────────────────────────────────────
-  ctx.fillStyle = FIELD_BG;
-  ctx.fillRect(0, 0, W, H);
-
-  // Grass stripes
-  for (let i = 0; i < 10; i++) {
-    if (i % 2 === 0) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; ctx.fillRect(i*W/10, 0, W/10, H); }
-  }
-
-  // Outer border
-  ctx.strokeStyle = FIELD_LINE2; ctx.lineWidth = 2;
-  ctx.strokeRect(HAX_GXL, 1, HAX_GXR - HAX_GXL, H - 2);
-
-  // Center line
-  ctx.strokeStyle = FIELD_LINE; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
-
-  // Center circle (open-hax: center 430,230 radius 75)
-  ctx.beginPath(); ctx.arc(W/2, H/2, 75, 0, Math.PI*2); ctx.stroke();
-  ctx.fillStyle = FIELD_LINE2;
-  ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
-
-  // ── Goals (open-hax: x=30/830, y=160-300) ────────────────────────────────
-  const gy1 = HAX_GY1, gy2 = HAX_GY2, gd = HAX_GD;
-
-  // Left net (gold team's goal — rose attacks it)
-  ctx.fillStyle = 'rgba(255,180,168,0.08)';
-  ctx.fillRect(HAX_GXL - gd, gy1, gd, gy2 - gy1);
-  ctx.strokeStyle = TEAM_COLOR.rose; ctx.lineWidth = 1.5;
-  // back wall
-  ctx.beginPath(); ctx.moveTo(HAX_GXL - gd, gy1); ctx.lineTo(HAX_GXL - gd, gy2); ctx.stroke();
-  // top bar
-  ctx.beginPath(); ctx.moveTo(HAX_GXL - gd, gy1); ctx.lineTo(HAX_GXL, gy1); ctx.stroke();
-  // bottom bar
-  ctx.beginPath(); ctx.moveTo(HAX_GXL - gd, gy2); ctx.lineTo(HAX_GXL, gy2); ctx.stroke();
-
-  // Right net (rose team's goal — gold attacks it)
-  ctx.fillStyle = 'rgba(233,195,73,0.08)';
-  ctx.fillRect(HAX_GXR, gy1, gd, gy2 - gy1);
-  ctx.strokeStyle = TEAM_COLOR.gold; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(HAX_GXR + gd, gy1); ctx.lineTo(HAX_GXR + gd, gy2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(HAX_GXR, gy1); ctx.lineTo(HAX_GXR + gd, gy1); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(HAX_GXR, gy2); ctx.lineTo(HAX_GXR + gd, gy2); ctx.stroke();
-
-  // Goal posts — open-hax discs at (30,160),(30,300),(830,160),(830,300)
-  [[HAX_GXL,gy1],[HAX_GXL,gy2],[HAX_GXR,gy1],[HAX_GXR,gy2]].forEach(([px,py]) => {
-    ctx.beginPath(); ctx.arc(px, py, 7.5, 0, Math.PI*2);
-    ctx.fillStyle = '#e9c349'; ctx.fill();
-    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
+// Ghost sprites for other players
+function haxSyncGhosts(players) {
+  if(!haxGame) return;
+  var G=haxGame;
+  Object.keys(haxGhosts).forEach(function(id){
+    if(!players.find(function(p){return p.id===id;})){
+      if(haxGhosts[id].sprite) haxGhosts[id].sprite.destroy();
+      if(haxGhosts[id].lbl)    haxGhosts[id].lbl.destroy();
+      delete haxGhosts[id];
+    }
   });
+  players.forEach(function(p){
+    if(p.id===haxMyId||haxGhosts[p.id]) return;
+    var color=p.team==='gold'?0xe9c349:0xffb4a8;
+    var gfx=new Phaser.Graphics(G);
+    gfx.lineStyle(2,0x000000,1); gfx.beginFill(color,0.9); gfx.drawCircle(30,30,30);
+    var s=G.add.sprite(430,230,gfx.generateTexture()); s.anchor.set(0.5);
+    var lbl=G.add.text(430,207,p.name.slice(0,10),{font:'bold 11px Arial',fill:'#fff',stroke:'#000',strokeThickness:2});
+    lbl.anchor.set(0.5);
+    haxGhosts[p.id]={sprite:s,lbl:lbl,targetX:430,targetY:230};
+  });
+}
 
-  // Team labels on goals
-  ctx.font = `bold 9px 'Space Grotesk',sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = TEAM_COLOR.rose + 'aa';
-  ctx.fillText('RÓŻOWI', HAX_GXL - gd/2, gy1 - 10);
-  ctx.fillStyle = TEAM_COLOR.gold + 'aa';
-  ctx.fillText('ZŁOCI', HAX_GXR + gd/2, gy1 - 10);
-
-  if (!haxState) return;
-
-  // ── Players ───────────────────────────────────────────────────────────────
-  ctx.textBaseline = 'bottom';
-  const allPlayers = haxState.players || [];
-  for (const p of allPlayers) {
-    const isMe = p.id === haxMyId;
-    // Use client-side prediction for local player (zero input delay)
-    const rx = (isMe && haxPred) ? haxPred.x : p.x;
-    const ry = (isMe && haxPred) ? haxPred.y : p.y;
-
-    const col  = TEAM_COLOR[p.team]  || '#fff';
-    const glow = TEAM_GLOW[p.team]   || 'rgba(255,255,255,0.3)';
-
-    if (isMe) { ctx.shadowColor = glow; ctx.shadowBlur = 20; }
-
-    const gr = ctx.createRadialGradient(rx - 4, ry - 4, 2, rx, ry, HAX_PR);
-    gr.addColorStop(0, '#fff');
-    gr.addColorStop(0.4, col);
-    gr.addColorStop(1, col + '88');
-    ctx.beginPath(); ctx.arc(rx, ry, HAX_PR, 0, Math.PI*2);
-    ctx.fillStyle = gr; ctx.fill();
-    ctx.strokeStyle = isMe ? '#fff' : col;
-    ctx.lineWidth = isMe ? 2.5 : 1.5; ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold 10px 'Space Grotesk',sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
-    ctx.fillText((p.name || '?').slice(0, 10), rx, ry - HAX_PR - 3);
-    ctx.shadowBlur = 0;
+function haxRespawn() {
+  if(!haxGame||!haxBallObj) return;
+  haxBallObj.sprite.body.x=430; haxBallObj.sprite.body.y=230;
+  haxBallObj.sprite.body.velocity.x=0; haxBallObj.sprite.body.velocity.y=0;
+  if(haxPlayerObj&&haxPlayerObj.sprite){
+    haxPlayerObj.sprite.body.x=haxMyTeam==='gold'?300:560;
+    haxPlayerObj.sprite.body.y=230;
+    haxPlayerObj.sprite.body.velocity.x=0; haxPlayerObj.sprite.body.velocity.y=0;
   }
-
-  // ── Ball ──────────────────────────────────────────────────────────────────
-  const b = haxState.ball || { x: W/2, y: H/2 };
-  ctx.shadowColor = 'rgba(255,255,255,0.5)'; ctx.shadowBlur = 12;
-  const bg = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, HAX_BR);
-  bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.6, '#e0e0e0'); bg.addColorStop(1, '#aaaaaa');
-  ctx.beginPath(); ctx.arc(b.x, b.y, HAX_BR, 0, Math.PI*2);
-  ctx.fillStyle = bg; ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-  ctx.shadowBlur = 0;
+  haxBotObjs.forEach(function(b,i){
+    if(!b.sprite) return;
+    b.sprite.body.x=600; b.sprite.body.y=180+i*120;
+    b.sprite.body.velocity.x=0; b.sprite.body.velocity.y=0;
+  });
 }
 
-// ─── Keyboard input ───────────────────────────────────────────────────────────
-const HAX_KEYMAP = { ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',
-  w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right',
-  x:'kick',X:'kick',' ':'kick' };
-
-function haxOnKD(e) {
-  const dir = HAX_KEYMAP[e.key];
-  if (!dir) return;
-  e.preventDefault();
-  haxKeys[dir] = true;
-  // Send immediately on press (don't wait for next frame)
-  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
-}
-function haxOnKU(e) {
-  const dir = HAX_KEYMAP[e.key];
-  if (!dir) return;
-  haxKeys[dir] = false;
-  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
-}
-function haxKD(dir) {
-  haxKeys[dir] = true;
-  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
-}
-function haxKU(dir) {
-  haxKeys[dir] = false;
-  if (haxSocket) { haxSocket.emit('hax:keys', {...haxKeys}); haxKeysSentAt = Date.now(); }
-}
-
-function haxSetupKeys() {
-  document.addEventListener('keydown', haxOnKD);
-  document.addEventListener('keyup',   haxOnKU);
-}
-function haxRemoveKeys() {
-  document.removeEventListener('keydown', haxOnKD);
-  document.removeEventListener('keyup',   haxOnKU);
-  haxKeys = { up:false, down:false, left:false, right:false };
-  if (haxSocket) haxSocket.emit('hax:keys', haxKeys);
-}
+// Mobile touch buttons
+function haxKD(dir){haxTouch[dir]=true;}
+function haxKU(dir){haxTouch[dir]=false;}
 
 // ─── Music Player ─────────────────────────────────────────────────────────────
 function musicPlay() {
