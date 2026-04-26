@@ -2611,6 +2611,7 @@ function haxInitSocket() {
     document.getElementById('hax-waiting-overlay').style.display='flex';
   });
   haxSocket.on('hax:start', function(d) {
+    haxGoalLock=false; haxKickoff=false; haxKickoffTeam=null;
     haxScore=d.score; haxUpdateHUD();
     document.getElementById('hax-waiting-overlay').style.display='none';
     document.getElementById('hax-status').textContent='W grze';
@@ -2775,7 +2776,11 @@ function haxLaunchWhenReady() {
 }
 function haxDestroyGame() {
   if (haxGame) { haxGame.destroy(); haxGame=null; }
-  haxPlayerObj=null; haxBallObj=null; haxGhosts={}; haxBotObjs=[]; haxChilds=[];
+  haxPlayerObj=null; haxBallObj=null; haxCenterGfx=null;
+  haxGhosts={}; haxBotObjs=[]; haxChilds=[];
+  // CRITICAL: reset locks so they don't carry over to the next game
+  haxGoalLock=false; haxKickoff=false; haxKickoffTeam=null;
+  var ki=document.getElementById('hax-kickoff-indicator'); if(ki) ki.style.display='none';
 }
 function haxCreateGame() {
   var wrap=document.getElementById('hax-phaser-container');
@@ -3147,11 +3152,12 @@ function haxPUpdate() {
   }
 
   // Goal detection (host only) — ball x position like open-hax
-  if(haxIsHost&&haxBallObj&&haxBallObj.sprite&&!haxGoalLock){
-    var bx=haxBallObj.sprite.x, by=haxBallObj.sprite.y;
+  if(haxIsHost&&haxBallObj&&haxBallObj.sprite&&haxBallObj.sprite.body&&!haxGoalLock){
+    // Use body.x/y (physics center) for reliable goal detection
+    var bx=haxBallObj.sprite.body.x, by=haxBallObj.sprite.body.y;
     var scorer=null;
-    if(bx<30&&by>=160&&by<=300)   scorer='rose';
-    else if(bx>830&&by>=160&&by<=300) scorer='gold';
+    if(bx<32&&by>=155&&by<=305)      scorer='rose';
+    else if(bx>828&&by>=155&&by<=305) scorer='gold';
     if(scorer){
       haxGoalLock=true;
       // Freeze everything immediately
