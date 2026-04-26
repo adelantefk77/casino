@@ -2797,7 +2797,7 @@ function haxPCreate() {
   G.world.setBounds(0,30,860,400);
   G.physics.startSystem(Phaser.Physics.P2JS);
   G.physics.p2.setImpactEvents(true);
-  G.physics.p2.restitution=0.75;
+  G.physics.p2.restitution=0.88; // stronger bounce off world walls (goal back walls)
 
   // Collision groups — from open-hax collisions.jsx
   var cg={
@@ -3008,7 +3008,13 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
     else if(dn){ sprite.body.angle=180; sprite.body.thrust(thrust); }
 
     // Kick mechanic — disabled during opponent's kickoff
-    if(kick&&touchingBall&&ballBody&&haxKickAllowed()){
+    // Kick works when touching ball OR ball is within extended range (a few px outside player circle)
+    var _bx=haxBallObj&&haxBallObj.sprite?haxBallObj.sprite.body.x:9999;
+    var _by=haxBallObj&&haxBallObj.sprite?haxBallObj.sprite.body.y:9999;
+    var _dist=Math.hypot(_bx-sprite.body.x, _by-sprite.body.y);
+    var _inRange = touchingBall || _dist < 34; // player r=15 + ball r=10 + 9px margin
+    if(kick&&_inRange&&haxBallObj&&haxKickAllowed()){
+      if(!ballBody&&haxBallObj.sprite.body) ballBody=haxBallObj.sprite.body;
       var p1=sprite.body, p2=ballBody;
       var a=Math.abs(p1.x-p2.x), b=Math.abs(p1.y-p2.y);
       var alpha=Math.atan(a/b)*(180/3.14159);
@@ -3070,7 +3076,7 @@ function haxMakeBall(G,material,cg) {
   sprite.body.collideWorldBounds=true;
   sprite.body.setMaterial(material);
   sprite.body.fixedRotation=true;
-  sprite.body.damping=0.4; // open-hax: damping=0.4
+  sprite.body.damping=0.25; // reduced from 0.4 — ball rolls further and bounces livelier
   sprite.body.mass=0.8;    // open-hax: mass=0.8
   sprite.body.fieldElementType='ball';
 
