@@ -3032,7 +3032,7 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
       if(p1.y<p2.y&&p1.x<p2.x) alpha=180-alpha;
       if(p1.x>p2.x&&p1.y<p2.y) alpha=alpha+180;
       if(p1.x>p2.x&&p1.y>p2.y) alpha=360-alpha;
-      p2.angle=alpha; p2.thrust(4000); // open-hax kickForce=4000
+      p2.angle=alpha; p2.thrust(2200); // reduced from 4000 for better feel
     }
     // Switch texture only when kick state changes (NOT every frame)
     if (kick !== wasKicking) {
@@ -3154,7 +3154,7 @@ function haxPUpdate() {
     var _ball=haxBallObj.sprite.body;
     // Cap speed so ball can't tunnel through walls
     var _spd=Math.hypot(_ball.velocity.x,_ball.velocity.y);
-    if(_spd>900){ _ball.velocity.x*=900/_spd; _ball.velocity.y*=900/_spd; }
+    if(_spd>600){ _ball.velocity.x*=600/_spd; _ball.velocity.y*=600/_spd; }
     // Safety: if ball escaped field entirely, teleport back to center
     if(_ball.x<-60||_ball.x>920||_ball.y<0||_ball.y>470){
       _ball.x=430; _ball.y=230; _ball.velocity.x=0; _ball.velocity.y=0;
