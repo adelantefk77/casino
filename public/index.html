@@ -2867,6 +2867,8 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
   var sprite=null, cursors=null, keyX=null, keySpace=null;
   var keyW=null,keyA=null,keyS=null,keyD=null;
   var touchingBall=false, ballBody=null;
+  var wasKicking=false; // track to avoid loadTexture every frame
+  var texNormal=null, texActive=null; // cached textures
 
   function renderGraphics(active) {
     var border=active?0xffffff:0x000000;
@@ -2880,7 +2882,10 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
   }
 
   function render(x,y) {
-    sprite=G.add.sprite(x,y,renderGraphics(false).generateTexture());
+    // Generate textures ONCE and cache — avoids loadTexture every frame
+    texNormal = renderGraphics(false).generateTexture();
+    texActive  = isMe ? renderGraphics(true).generateTexture() : texNormal;
+    sprite=G.add.sprite(x,y,texNormal);
     sprite.smoothed=false;
     G.physics.p2.enable(sprite);
     sprite.body.setCircle(15,0,0,0);
@@ -2955,8 +2960,11 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
       if(p1.x>p2.x&&p1.y>p2.y) alpha=360-alpha;
       p2.angle=alpha; p2.thrust(4000); // open-hax kickForce=4000
     }
-    // Active border when kicking
-    sprite.loadTexture(renderGraphics(kick).generateTexture());
+    // Switch texture only when kick state changes (NOT every frame)
+    if (kick !== wasKicking) {
+      wasKicking = kick;
+      sprite.loadTexture(kick ? texActive : texNormal);
+    }
   }
 
   function botUpdate() {
