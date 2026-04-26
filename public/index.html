@@ -2863,20 +2863,31 @@ function haxPCreate() {
   bg.lineStyle(2,0xe9c349,0.8);
   bg.moveTo(830,160);bg.lineTo(830,300); // goal mouth line (gold)
 
-  // Lines — from open-hax game.jsx lines array + line.jsx render()
+  // Lines — visual only (drawn as graphics, no physics for thin line sprites)
   HAX_LINES.forEach(function(ln){
-    var sx=(ln.x2-ln.x1)/2+ln.x1, sy=(ln.y2-ln.y1)/2+ln.y1;
-    var gfx=new Phaser.Graphics(G,0,0);
-    gfx.moveTo(ln.x1,ln.y1); gfx.lineStyle(2,0xffffff,1); gfx.lineTo(ln.x2,ln.y2); gfx.endFill();
-    var s=G.add.sprite(sx,sy,gfx.generateTexture());
-    G.physics.p2.enable(s); s.body.static=true;
-    s.body.setCollisionGroup(cg.FOR_LINE);
-    var col=[cg.FOR_LINE];
-    if(ln.ball)   col.push(cg.FOR_BALL);
-    if(ln.player) col.push(cg.FOR_PLAYER);
-    s.body.collides(col);
-    s.body.setMaterial(mats.field);
+    var gfx=G.add.graphics(0,0);
+    gfx.moveTo(ln.x1,ln.y1); gfx.lineStyle(2,0xffffff,1); gfx.lineTo(ln.x2,ln.y2);
   });
+
+  // THICK invisible static rectangles for walls — prevent ball tunneling.
+  // Each wall is 12px thick so fast-moving balls can't pass through in one step.
+  function addWall(cx, cy, w, h, withBall) {
+    var s=G.add.sprite(cx, cy); s.visible=false;
+    G.physics.p2.enable(s); s.body.static=true;
+    s.body.setRectangle(w, h, 0, 0);
+    s.body.setCollisionGroup(cg.FOR_LINE);
+    s.body.setMaterial(mats.field);
+    var col=[cg.FOR_LINE];
+    if(withBall) col.push(cg.FOR_BALL);
+    s.body.collides(col);
+  }
+  // Left wall: two segments (above and below goal mouth y=160..300)
+  addWall(30, 95,  12, 130, true);  // left-top:    y=30..160
+  addWall(30, 365, 12, 130, true);  // left-bottom:  y=300..430
+  // Right wall: same
+  addWall(830, 95,  12, 130, true); // right-top
+  addWall(830, 365, 12, 130, true); // right-bottom
+  // Top and bottom handled by world bounds (y=30 and y=430)
 
   // Center circle — saved to haxCenterGfx so we can redraw during kickoff
   haxCenterGfx = G.add.graphics(860/2, 460/2);
@@ -3136,6 +3147,18 @@ function haxPUpdate() {
       vx:haxBallObj.sprite.body.velocity.x,
       vy:haxBallObj.sprite.body.velocity.y,
     });
+  }
+
+  // Ball velocity cap + escape safety
+  if (haxBallObj&&haxBallObj.sprite&&haxBallObj.sprite.body) {
+    var _ball=haxBallObj.sprite.body;
+    // Cap speed so ball can't tunnel through walls
+    var _spd=Math.hypot(_ball.velocity.x,_ball.velocity.y);
+    if(_spd>900){ _ball.velocity.x*=900/_spd; _ball.velocity.y*=900/_spd; }
+    // Safety: if ball escaped field entirely, teleport back to center
+    if(_ball.x<-60||_ball.x>920||_ball.y<0||_ball.y>470){
+      _ball.x=430; _ball.y=230; _ball.velocity.x=0; _ball.velocity.y=0;
+    }
   }
 
   // Kickoff center circle enforcement — push opposing team players out
