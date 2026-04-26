@@ -2620,7 +2620,7 @@ function haxInitSocket() {
     document.getElementById('hax-status').textContent='W grze';
     haxLaunchWhenReady();
     // Start timer AFTER haxLaunchWhenReady (which calls haxDestroyGame → haxStopTimer)
-    setTimeout(haxStartTimer, 50);
+    // Timer starts on first ball touch, not immediately
     if (d.kickoffTeam) setTimeout(function(){ haxRespawn(d.kickoffTeam); }, 200);
   });
   haxSocket.on('hax:roster', function(players) {
@@ -2667,7 +2667,7 @@ function haxInitSocket() {
   });
   haxSocket.on('hax:respawn', function(d){
     haxGoalLock=false;
-    haxTimerRun=true; // resume timer after respawn
+    // Timer resumes when kickoff team touches ball (haxClearKickoff)
     var ov=document.getElementById('hax-waiting-overlay');
     if(ov) ov.style.display='none';
     haxRespawn(d && d.kickoffTeam);
@@ -3004,10 +3004,9 @@ function haxMakePlayer(G,material,cg,team,nickname,avatar,isMe) {
       if(cb&&cb.fieldElementType==='ball'){ballBody=cb;touchingBall=true;}
     });
     sprite.body.onEndContact.add(function(){touchingBall=false;});
-    if(!isMe){
-      var lbl=new Phaser.Text(G,0,20,nickname.slice(0,12),{font:'13px Arial',fill:'#ffffff'});
-      lbl.x=-lbl.width/2; sprite.addChild(lbl);
-    }
+    // Show nickname above sprite for ALL players (login name)
+    var lbl=new Phaser.Text(G,0,20,nickname.slice(0,12),{font:'13px Arial',fill:'#ffffff',stroke:'#000000',strokeThickness:2});
+    lbl.x=-lbl.width/2; sprite.addChild(lbl);
     var av=new Phaser.Text(G,0,-10,avatar,{font:'15px Arial',fill:'#ffffff'});
     av.x=-av.width/2; sprite.addChild(av);
     if(isMe){
@@ -3313,6 +3312,12 @@ function haxClearKickoff() {
   haxKickoff=false; haxKickoffTeam=null;
   haxDrawCenterCircle(false);
   var el=document.getElementById('hax-kickoff-indicator'); if(el) el.style.display='none';
+  // Timer starts/resumes on first ball touch
+  if (!haxTimerInt) {
+    haxStartTimer(); // first touch of the whole game
+  } else {
+    haxTimerRun=true; // resume after goal respawn
+  }
 }
 
 // Disable kick during opponent's kickoff

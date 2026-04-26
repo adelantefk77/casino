@@ -791,9 +791,16 @@ io.on('connection', socket => {
     const winner = r.score.gold > r.score.rose ? 'gold'
                  : r.score.rose > r.score.gold  ? 'rose' : 'draw';
     r.score = {gold:0, rose:0};
-    r.state = r.isBot ? 'playing' : 'waiting';
-    io.to(`hax:${haxRid}`).emit('hax:gameover', { winner });
-    setTimeout(() => { r.goalLock = false; }, 3000);
+    r.state = 'playing';
+    const rid2 = haxRid;
+    io.to(`hax:${rid2}`).emit('hax:gameover', { winner });
+    setTimeout(() => {
+      r.goalLock = false;
+      if (r.players.length >= 2 || r.isBot) {
+        r.score = {gold:0, rose:0};
+        io.to(`hax:${rid2}`).emit('hax:start', { score: r.score, kickoffTeam: 'gold' });
+      }
+    }, 5000);
   });
 
   // Host relays ball position to non-hosts
@@ -818,6 +825,15 @@ io.on('connection', socket => {
         r.score = {gold:0,rose:0};
         r.state = r.isBot ? 'playing' : 'waiting';
         io.to(`hax:${haxRid}`).emit('hax:gameover', { winner });
+        // Auto-restart after 5s if players still present
+        setTimeout(() => {
+          if (r.players.length >= 2 || r.isBot) {
+            r.score = {gold:0, rose:0};
+            r.state = 'playing';
+            r.goalLock = false;
+            io.to(`hax:${haxRid}`).emit('hax:start', { score: r.score, kickoffTeam: 'gold' });
+          }
+        }, 5000);
       } else {
         // Tell clients which team conceded (they get kickoff)
       var conceded = scorer === 'gold' ? 'rose' : 'gold';
