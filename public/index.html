@@ -2618,8 +2618,9 @@ function haxInitSocket() {
     haxScore=d.score; haxUpdateHUD();
     document.getElementById('hax-waiting-overlay').style.display='none';
     document.getElementById('hax-status').textContent='W grze';
-    haxStartTimer();
     haxLaunchWhenReady();
+    // Start timer AFTER haxLaunchWhenReady (which calls haxDestroyGame → haxStopTimer)
+    setTimeout(haxStartTimer, 50);
     if (d.kickoffTeam) setTimeout(function(){ haxRespawn(d.kickoffTeam); }, 200);
   });
   haxSocket.on('hax:roster', function(players) {
