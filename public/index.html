@@ -2633,6 +2633,25 @@ function haxInitSocket() {
   });
   haxSocket.on('hax:goal', function(d) {
     haxScore=d.score; haxUpdateHUD();
+
+    // Immediately freeze ball so game doesn't continue while waiting for respawn
+    if (haxBallObj && haxBallObj.sprite && haxBallObj.sprite.body) {
+      haxBallObj.sprite.body.velocity.x=0;
+      haxBallObj.sprite.body.velocity.y=0;
+    }
+    // Freeze local player too
+    if (haxPlayerObj && haxPlayerObj.sprite && haxPlayerObj.sprite.body) {
+      haxPlayerObj.sprite.body.velocity.x=0;
+      haxPlayerObj.sprite.body.velocity.y=0;
+    }
+
+    // Show goal overlay so it's clear the goal counted
+    var ov=document.getElementById('hax-waiting-overlay');
+    if(ov){
+      ov.style.display='flex';
+      ov.querySelector('p').textContent = (d.scorer==='gold'?'⚽ ZŁOCI STRZELAJĄ!':'⚽ RÓŻOWI STRZELAJĄ!')+' ('+d.score.gold+' : '+d.score.rose+')';
+    }
+
     var fl=document.getElementById('hax-goal-flash');
     var tx=document.getElementById('hax-goal-text');
     tx.textContent = d.scorer==='gold'?'⚽ ZŁOCI STRZELAJĄ!':'⚽ RÓŻOWI STRZELAJĄ!';
@@ -2640,8 +2659,14 @@ function haxInitSocket() {
     fl.classList.remove('show'); void fl.offsetWidth; fl.classList.add('show');
     setTimeout(function(){fl.classList.remove('show');fl.style.opacity='0';},2200);
   });
-  haxSocket.on('hax:respawn', function(d){ haxRespawn(d && d.kickoffTeam); });
+  haxSocket.on('hax:respawn', function(d){
+    haxGoalLock=false; // release lock — respawn means server confirmed the goal
+    var ov=document.getElementById('hax-waiting-overlay');
+    if(ov) ov.style.display='none';
+    haxRespawn(d && d.kickoffTeam);
+  });
   haxSocket.on('hax:gameover', function(d) {
+    haxGoalLock=false;
     haxClearKickoff();
     haxScore={gold:0,rose:0}; haxUpdateHUD();
     var m={gold:'Złoci wygrali!',rose:'Różowi wygrali!'};
@@ -3124,14 +3149,17 @@ function haxPUpdate() {
   // Goal detection (host only) — ball x position like open-hax
   if(haxIsHost&&haxBallObj&&haxBallObj.sprite&&!haxGoalLock){
     var bx=haxBallObj.sprite.x, by=haxBallObj.sprite.y;
-    if(bx<30&&by>=160&&by<=300){
+    var scorer=null;
+    if(bx<30&&by>=160&&by<=300)   scorer='rose';
+    else if(bx>830&&by>=160&&by<=300) scorer='gold';
+    if(scorer){
       haxGoalLock=true;
-      haxSocket.emit('hax:goal',{scorer:'rose'});
-      setTimeout(function(){haxGoalLock=false;},3000);
-    } else if(bx>830&&by>=160&&by<=300){
-      haxGoalLock=true;
-      haxSocket.emit('hax:goal',{scorer:'gold'});
-      setTimeout(function(){haxGoalLock=false;},3000);
+      // Freeze everything immediately
+      haxBallObj.sprite.body.velocity.x=0;
+      haxBallObj.sprite.body.velocity.y=0;
+      haxBotObjs.forEach(function(b){ if(b.sprite&&b.sprite.body){b.sprite.body.velocity.x=0;b.sprite.body.velocity.y=0;} });
+      haxSocket.emit('hax:goal',{scorer:scorer});
+      // goalLock released when hax:respawn arrives (not on timer)
     }
   }
 }
